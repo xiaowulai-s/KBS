@@ -1,0 +1,57 @@
+﻿{
+  \"version\": \"1.0.0\",
+  \"siteTitle\": \"本地文件知识库\",
+  \"siteDescription\": \"通过 GitHub Pages 分享的本地文件知识库\",
+  \"entries\": [
+    {
+      \"id\": 1,
+      \"title\": \"JavaScript 基础教程\",
+      \"category\": \"编程教程\",
+      \"tags\": [\"JavaScript\", \"入门\"],
+      \"path\": \"docs/js-basics.md\",
+      \"description\": \"JavaScript 语言的基础语法和核心概念讲解\",
+      \"createdAt\": \"2026-06-15\",
+      \"type\": \"markdown\"
+    },
+    {
+      \"id\": 2,
+      \"title\": \"CSS 布局技巧汇总\",
+      \"category\": \"编程教程\",
+      \"tags\": [\"CSS\", \"布局\"],
+      \"path\": \"docs/css-layout.md\",
+      \"description\": \"Flexbox、Grid 等现代 CSS 布局方法总结\",
+      \"createdAt\": \"2026-06-16\",
+      \"type\": \"markdown\"
+    },
+    {
+      \"id\": 3,
+      \"title\": \"项目需求文档 v2.0\",
+      \"category\": \"项目管理\",
+      \"tags\": [\"需求\", \"文档\"],
+      \"path\": \"docs/requirements.md\",
+      \"description\": \"项目二期需求说明和功能规划\",
+      \"createdAt\": \"2026-06-17\",
+      \"type\": \"markdown\"
+    },
+    {
+      \"id\": 4,
+      \"title\": \"团队会议记录 - 6月\",
+      \"category\": \"团队协作\",
+      \"tags\": [\"会议\", \"记录\"],
+      \"path\": \"docs/meeting-june.md\",
+      \"description\": \"6月份团队周会会议纪要汇总\",
+      \"createdAt\": \"2026-06-17\",
+      \"type\": \"markdown\"
+    },
+    {
+      \"id\": 5,
+      \"title\": \"API 接口设计规范\",
+      \"category\": \"技术文档\",
+      \"tags\": [\"API\", \"规范\"],
+      \"path\": \"docs/api-spec.md\",
+      \"description\": \"RESTful API 接口命名、参数、返回值的统一规范\",
+      \"createdAt\": \"2026-06-14\",
+      \"type\": \"markdown\"
+    }
+  ]
+}

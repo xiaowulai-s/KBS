@@ -13,4 +13,4 @@ desktop.ini
 *.swo
 
 # Local data (should not be committed)
-data/index.json
+# data/index.json  # 需要提交到仓库供 GitHub Pages 使用
