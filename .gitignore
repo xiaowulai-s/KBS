@@ -1,0 +1,16 @@
+# Browser cache
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local data (should not be committed)
+data/index.json

@@ -1,0 +1,174 @@
+﻿﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地文件知识库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- MiniSearch for full-text search -->
+  <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
+  <!-- marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-content">
+      <div class="logo">
+        <span class="logo-icon">&#128219;</span>
+        <h1>知识库</h1>
+      </div>
+      <nav class="header-nav">
+        <button class="btn btn-primary" id="addBtn">＋ 添加文件</button>
+        <button class="btn btn-secondary" id="adminToggleBtn">管理面板</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Search & Filter Bar -->
+  <section class="search-section">
+    <div class="container">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input type="text" id="searchInput" placeholder="搜索知识库..." autocomplete="off">
+        <button class="clear-btn" id="clearSearch" style="display:none;">&#10005;</button>
+      </div>
+      <div class="filter-bar" id="filterBar">
+        <span class="filter-label">筛选：</span>
+        <div class="filter-tags" id="categoryFilters"></div>
+        <div class="filter-tags" id="tagFilters"></div>
+        <div class="sort-controls">
+          <button class="btn btn-secondary btn-sm" id="sortBtn" title="切换排序">⇅ 排序</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Bar -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="stats">
+        <span id="totalCount">共 <strong>0</strong> 条</span>
+        <span id="filteredCount">显示 <strong>0</strong> 条</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div id="entryGrid" class="entry-grid"></div>
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <p class="empty-icon">&#128269;</p>
+      <p>没有找到匹配的文件</p>
+      <p class="empty-hint">试试其他关键词或清除筛选条件</p>
+    </div>
+  </main>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="modal" style="display:none;">
+    <div class="modal-overlay" id="detailOverlay"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 id="detailTitle"></h2>
+        <button class="modal-close" id="detailClose">&#10005;</button>
+      </div>
+      <div class="modal-body" id="detailBody">
+        <div class="detail-meta">
+          <span class="meta-item"><strong>分类：</strong><span id="detailCategory"></span></span>
+          <span class="meta-item"><strong>标签：</strong><span id="detailTags"></span></span>
+          <span class="meta-item"><strong>日期：</strong><span id="detailDate"></span></span>
+        </div>
+        <div class="detail-desc" id="detailDesc"></div>
+        <div class="detail-preview" id="detailPreview"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div id="formModal" class="modal" style="display:none;">
+    <div class="modal-overlay" id="formOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="formTitleText">添加文件</h2>
+        <button class="modal-close" id="formClose">&#10005;</button>
+      </div>
+      <form id="entryForm">
+        <input type="hidden" id="editId">
+        <div class="form-group">
+          <label for="formTitle">标题 *</label>
+          <input type="text" id="formTitle" required placeholder="请输入文件标题">
+        </div>
+        <div class="form-group">
+          <label for="formCategory">分类 *</label>
+          <select id="formCategory" required>
+            <option value="">请选择分类</option>
+          </select>
+          <input type="text" id="formCategoryNew" class="new-category-input" placeholder="或输入新分类名称">
+        </div>
+        <div class="form-group">
+          <label for="formTags">标签（用逗号分隔）</label>
+          <input type="text" id="formTags" placeholder="例如：JavaScript, 教程">
+        </div>
+        <div class="form-group">
+          <label for="formPath">文件路径</label>
+          <input type="text" id="formPath" placeholder="例如：docs/example.md">
+        </div>
+        <div class="form-group">
+          <label for="formDesc">描述</label>
+          <textarea id="formDesc" rows="3" placeholder="简要描述此文件内容"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="button" class="btn btn-secondary" id="formCancel">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="adminPanel" class="admin-panel" style="display:none;">
+    <div class="container">
+      <div class="admin-header">
+        <h2>管理面板</h2>
+        <div class="admin-actions">
+          <button class="btn btn-secondary" id="exportBtn">导出 JSON</button>
+          <button class="btn btn-secondary" id="importBtn">导入 JSON</button>
+          <button class="btn btn-danger" id="closeAdmin">关闭面板</button>
+        </div>
+      </div>
+      <div class="admin-table-wrapper">
+        <table class="admin-table" id="adminTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>标题</th>
+              <th>分类</th>
+              <th>标签</th>
+              <th>路径</th>
+              <th>日期</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="importFileInput" accept=".json" style="display:none;">
+
+  <footer class="footer">
+    <div class="container">
+      <p>本地文件知识库 &copy; 2026 &middot; 由 GitHub Pages 驱动</p>
+    </div>
+  </footer>
+
+  <script src="js/utils.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
