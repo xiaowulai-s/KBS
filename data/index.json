@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
-  "generatedAt": "2026-06-18T05:27:14Z",
+  "generatedAt": "2026-06-18T05:48:26Z",
   "entries": [
     {
       "id": 1,
@@ -15,6 +15,19 @@
       ],
       "path": "docs/api-spec.md",
       "description": "API 接口设计规范",
+      "createdAt": "2026-06-18",
+      "type": "markdown"
+    },
+    {
+      "id": 2,
+      "title": "自动推送验证文档",
+      "category": "未分类",
+      "tags": [
+        "Md",
+        "文档"
+      ],
+      "path": "docs/auto-push-demo.md",
+      "description": "自动推送验证文档",
       "createdAt": "2026-06-18",
       "type": "markdown"
     },
