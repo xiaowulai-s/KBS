@@ -146,7 +146,7 @@ const FileType = {
   },
 
   isPreviewable(type) {
-    return ['markdown', 'image'].includes(type);
+    return ['markdown', 'image', 'pdf', 'video', 'audio'].includes(type);
   },
 };
 

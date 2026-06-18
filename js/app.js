@@ -503,6 +503,26 @@ const APP = {
         preview.innerHTML = `
           <img src="${this.escapeHtml(fullPath)}" alt="${this.escapeHtml(entry.title)}" style="max-width:100%;border-radius:var(--radius);">
         `;
+      } else if (fileType === 'pdf') {
+        preview.innerHTML = `
+          <iframe src="${this.escapeHtml(fullPath)}" style="width:100%;height:600px;border:none;border-radius:var(--radius);">
+            <a href="${this.escapeHtml(fullPath)}" target="_blank">点击下载 PDF 文件</a>
+          </iframe>
+        `;
+      } else if (fileType === 'video') {
+        preview.innerHTML = `
+          <video controls style="max-width:100%;border-radius:var(--radius);">
+            <source src="${this.escapeHtml(fullPath)}" type="video/${entry.path.split('.').pop()}">
+            您的浏览器不支持视频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a>
+          </video>
+        `;
+      } else if (fileType === 'audio') {
+        preview.innerHTML = `
+          <audio controls style="width:100%;">
+            <source src="${this.escapeHtml(fullPath)}" type="audio/${entry.path.split('.').pop()}">
+            您的浏览器不支持音频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a>
+          </audio>
+        `;
       }
     } else {
       preview.innerHTML = '<p style="color:var(--text-secondary)">暂不支持预览此文件类型</p>';
