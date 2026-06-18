@@ -48,11 +48,13 @@ const APP = {
 
     try {
       const resp = await fetch('data/index.json');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       this.data = await resp.json();
       this.rebuildMetadata();
       this.nextId = Math.max(...this.data.entries.map(e => e.id), 0) + 1;
+      console.log('✅ Data loaded:', this.data.entries.length, 'entries');
     } catch (err) {
-      console.error('Failed to load data:', err);
+      console.error('❌ Failed to load data:', err);
       this.data = { version: '1.0.0', siteTitle: '知识库', entries: [] };
       this.rebuildMetadata();
     }
@@ -441,7 +443,7 @@ const APP = {
         <span>搜索历史</span>
         <button class="btn-clear-history" onclick="SearchHistory.clear();APP.hideSearchHistory();">清空</button>
       </div>
-      ${history.slice(0, 5).map(h => `<div class="search-history-item">${SearchHighlight.escapeHtml(h)}</div>`).join('')}
+      ${history.slice(0, 5).map(h => `<div class="search-history-item">${APP.escapeHtml(h)}</div>`).join('')}
     `;
 
     input.parentNode.appendChild(this.searchHistoryDropdown);
