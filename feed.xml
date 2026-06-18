@@ -5,69 +5,102 @@
     <link>https://houxixi.ccwu.cc/</link>
     <description>通过 GitHub Pages 分享的本地文件知识库</description>
     <language>zh-CN</language>
+    <lastBuildDate>Thu, 18 Jun 2026 06:29:15 +0000</lastBuildDate>
+    <generator>KKnowledge Base RSS Generator</generator>
     <atom:link href="https://houxixi.ccwu.cc/feed.xml" rel="self" type="application/rss+xml"/>
-    <lastBuildDate>2026-06-18T10:23:21Z</lastBuildDate>
     <item>
-      <title><![CDATA[JavaScript 基础教程]]></title>
-      <link>https://houxixi.ccwu.cc/?id=1</link>
-      <description><![CDATA[JavaScript 语言的基础语法和核心概念讲解]]></description>
-      <pubDate>2026-06-15T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=1</guid>
-      <category>编程教程</category>
-      <category>JavaScript</category>
-      <category>入门</category>
-
+      <title><![CDATA[API 接口设计规范]]></title>
+      <link>https://houxixi.ccwu.cc//?id=1</link>
+      <description><![CDATA[API 接口设计规范]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=1</guid>
+      <category>Md</category>
+      <category>文档</category>
+      <category>技术文档</category>
+    </item>    <item>
+      <title><![CDATA[自动推送验证文档]]></title>
+      <link>https://houxixi.ccwu.cc//?id=2</link>
+      <description><![CDATA[自动推送验证文档]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=2</guid>
+      <category>Md</category>
+      <category>文档</category>
     </item>    <item>
       <title><![CDATA[CSS 布局技巧汇总]]></title>
-      <link>https://houxixi.ccwu.cc/?id=2</link>
-      <description><![CDATA[Flexbox、Grid 等现代 CSS 布局方法总结]]></description>
-      <pubDate>2026-06-16T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=2</guid>
-      <category>编程教程</category>
-      <category>CSS</category>
-      <category>布局</category>
-
-    </item>    <item>
-      <title><![CDATA[项目需求文档 v2.0]]></title>
-      <link>https://houxixi.ccwu.cc/?id=3</link>
-      <description><![CDATA[项目二期需求说明和功能规划]]></description>
-      <pubDate>2026-06-17T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=3</guid>
-      <category>项目管理</category>
-      <category>需求</category>
+      <link>https://houxixi.ccwu.cc//?id=4</link>
+      <description><![CDATA[CSS 布局技巧汇总]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=4</guid>
+      <category>Md</category>
       <category>文档</category>
-
+      <category>编程教程</category>
+    </item>    <item>
+      <title><![CDATA[JavaScript 基础教程]]></title>
+      <link>https://houxixi.ccwu.cc//?id=6</link>
+      <description><![CDATA[JavaScript 基础教程]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=6</guid>
+      <category>Md</category>
+      <category>文档</category>
+      <category>编程教程</category>
     </item>    <item>
       <title><![CDATA[团队会议记录 - 6月]]></title>
-      <link>https://houxixi.ccwu.cc/?id=4</link>
-      <description><![CDATA[6月份团队周会会议纪要汇总]]></description>
-      <pubDate>2026-06-17T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=4</guid>
+      <link>https://houxixi.ccwu.cc//?id=7</link>
+      <description><![CDATA[团队会议记录 - 6月]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=7</guid>
+      <category>Md</category>
+      <category>文档</category>
       <category>团队协作</category>
-      <category>会议</category>
-      <category>记录</category>
-
     </item>    <item>
-      <title><![CDATA[API 接口设计规范]]></title>
-      <link>https://houxixi.ccwu.cc/?id=5</link>
-      <description><![CDATA[RESTful API 接口命名、参数、返回值的统一规范]]></description>
-      <pubDate>2026-06-14T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=5</guid>
-      <category>技术文档</category>
-      <category>API</category>
-      <category>规范</category>
-
+      <title><![CDATA[项目需求文档 v2.0]]></title>
+      <link>https://houxixi.ccwu.cc//?id=10</link>
+      <description><![CDATA[项目需求文档 v2.0]]></description>
+      <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=10</guid>
+      <category>Md</category>
+      <category>文档</category>
+      <category>项目管理</category>
     </item>    <item>
-      <title><![CDATA[EPM570T144C5N 数据手册]]></title>
-      <link>https://houxixi.ccwu.cc/?id=6</link>
-      <description><![CDATA[Altera EPM570T144C5N 可编程逻辑器件数据手册]]></description>
-      <pubDate>2026-06-17T00:00:00Z</pubDate>
-      <guid>https://houxixi.ccwu.cc/?id=6</guid>
-      <category>技术文档</category>
-      <category>Altera</category>
-      <category>FPGA</category>
+      <title><![CDATA[Portfolio]]></title>
+      <link>https://houxixi.ccwu.cc//?id=11</link>
+      <description><![CDATA[&lt;!DOCTYPE html&gt; &lt;html lang=&quot;en&quot;&gt; &lt;head&gt; &lt;meta charset=&quot;UTF-8&quot;&gt; &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt; &lt;title&gt;&gt; DEV_PORTFOLIO | Cyberpunk&lt;/title&gt; &lt;link href=&quot;https://fon]]></description>
+      <pubDate>Fri, 12 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=11</guid>
+      <category>Html</category>
+      <category>编程教程</category>
+    </item>    <item>
+      <title><![CDATA[C14689 可编程逻辑器件(CPLD FPGA) EPM570T144C5N 规格书 WJ52793]]></title>
+      <link>https://houxixi.ccwu.cc//?id=3</link>
+      <description><![CDATA[C14689 可编程逻辑器件(CPLD FPGA) EPM570T144C5N 规格书 WJ52793 相关文件]]></description>
+      <pubDate>Wed, 10 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=3</guid>
       <category>PDF</category>
-
+      <category>技术文档</category>
+    </item>    <item>
+      <title><![CDATA[EPM570T144C5N]]></title>
+      <link>https://houxixi.ccwu.cc//?id=5</link>
+      <description><![CDATA[暂无摘要]]></description>
+      <pubDate>Wed, 10 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=5</guid>
+      <category>PDF</category>
+      <category>技术文档</category>
+    </item>    <item>
+      <title><![CDATA[Mcgs昆仑通态脚本函数]]></title>
+      <link>https://houxixi.ccwu.cc//?id=9</link>
+      <description><![CDATA[暂无摘要]]></description>
+      <pubDate>Wed, 04 Mar 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=9</guid>
+      <category>Docx</category>
+    </item>    <item>
+      <title><![CDATA[Linux]]></title>
+      <link>https://houxixi.ccwu.cc//?id=8</link>
+      <description><![CDATA[智能 Linux 门禁系统详细技术方案 1. 硬件资源深度规划 (Hardware Deep Dive) 基于 Linux 的灵活性，建议采用具备 NPU 加速的国产 SoC 方案。 1.1 核心计算平台 推荐芯片: Rockchip RK...]]></description>
+      <pubDate>Wed, 25 Feb 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=8</guid>
+      <category>Md</category>
+      <category>文档</category>
+      <category>项目管理</category>
     </item>
   </channel>
 </rss>

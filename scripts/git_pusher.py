@@ -61,6 +61,11 @@ class GitPusher:
         result = self._run(["status", "--porcelain"])
         return result.returncode == 0 and bool(result.stdout.strip())
 
+    def has_staged_changes(self) -> bool:
+        """检查暂存区是否有待提交的变更"""
+        result = self._run(["diff", "--cached", "--stat"])
+        return result.returncode == 0 and bool(result.stdout.strip())
+
     def commit_and_push(self, changed_files: list[str], message: str) -> tuple[bool, str]:
         """
         提交变更并推送到远程仓库
@@ -84,6 +89,9 @@ class GitPusher:
         if add_result.returncode != 0:
             return False, f"git add 失败：{add_result.stderr.strip()}"
 
+        if not self.has_staged_changes():
+            return True, "没有需要提交的变更"
+
         # 提交
         commit_args = [
             "commit",
@@ -99,7 +107,7 @@ class GitPusher:
         # 提交后，如果工作区仍有其他未提交修改，临时 stash 以便 pull --rebase
         stashed = False
         if self.has_changes():
-            stash_result = self._run(["stash", "push", "-m", "auto-push temp stash"])
+            stash_result = self._run(["stash", "push", "-u", "-m", "auto-push temp stash"])
             if stash_result.returncode == 0:
                 stashed = True
 

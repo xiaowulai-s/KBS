@@ -1,4 +1,4 @@
-const APP = {
+﻿const APP = {
   STORAGE_KEY: "knowledgeBaseData",
   data: null,
   categories: new Set(),
@@ -17,11 +17,18 @@ const APP = {
   showFavoritesOnly: false,
   batchMode: false,
   selectedIds: new Set(),
+  apiMode: false,
 
   async init() {
     this.registerSW();
     Skeleton.show(document.getElementById("entryGrid"));
+    this.apiMode = await API.check();
+    if (this.apiMode) {
+      console.log("API 模式已启用：数据将通过本地后端服务持久化");
+      localStorage.removeItem("kb_localOverrides");
+    }
     await this.loadData();
+    if (!this.apiMode) this._applyLocalOverrides();
     this.loadUrlState();
     this.setupOfflineDetection();
     this.loadFavorites();
@@ -38,6 +45,21 @@ const APP = {
   },
 
   async loadData() {
+    if (this.apiMode) {
+      try {
+        this.data = await API.listEntries();
+        this.rebuildMetadata();
+        this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+        this.saveData();
+        console.log("Loaded from API:", this.data.entries.length, "entries");
+        return;
+      } catch (err) {
+        console.error("API load failed, falling back:", err);
+        this.apiMode = false;
+        API.reset();
+      }
+    }
+
     const stored = localStorage.getItem(this.STORAGE_KEY);
     if (stored) {
       try {
@@ -204,9 +226,16 @@ const APP = {
       entries = entries.filter((e) => e.tags.includes(this.activeTag));
     }
     if (this.searchQuery && this.searchIndex) {
-      const results = this.searchIndex.search(this.searchQuery);
-      const resultIds = new Set(results.map((r) => r.id));
-      entries = entries.filter((e) => resultIds.has(e.id));
+      // When searching, prioritize relevance scoring
+      const results = this.searchIndex.search(this.searchQuery, {
+        combineWith: "AND",
+        boost: { title: 3, description: 2, tags: 1.5, category: 1 },
+      });
+      const resultMap = new Map(results.map((r) => [r.id, r.score || 0]));
+      entries = entries.filter((e) => resultMap.has(e.id));
+      // Sort by relevance score (descending)
+      entries.sort((a, b) => (resultMap.get(b.id) || 0) - (resultMap.get(a.id) || 0));
+      // When search results exist, skip date/title sort
     } else if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
       entries = entries.filter(
@@ -325,25 +354,28 @@ const APP = {
         return `
         <div class="entry-card" data-id="${entry.id}" tabindex="0" role="button" aria-label="${this.escapeHtml(entry.title)}" style="animation-delay:${(idx % 12) * 50}ms">
           ${batchCheck}
-          <div class="card-thumb">
-            <div class="card-thumb-bar"></div>
-            <i data-lucide="${iconName}" class="card-thumb-icon"></i>
+          <div class="card-type-badge">
+            <i data-lucide="${iconName}"></i>
           </div>
-          <div class="card-header">
-            <span class="card-title">${this.highlightText(entry.title)}</span>
-            <span class="card-category"><i data-lucide="folder"></i>${this.escapeHtml(entry.category)}</span>
+          <div class="card-body">
+            <div class="card-header">
+              <span class="card-title">${this.highlightText(entry.title)}</span>
+              <span class="card-category"><i data-lucide="folder"></i>${this.escapeHtml(entry.category)}</span>
+            </div>
+            <div class="card-meta">
+              <span class="card-meta-item"><i data-lucide="calendar"></i>${entry.createdAt || "-"}</span>
+              <span class="card-meta-sep"></span>
+              <span class="card-meta-item"><i data-lucide="tag"></i>${entry.tags.length} 标签</span>
+            </div>
+            <p class="card-desc">${this.highlightText(entry.description || "暂无描述")}</p>
           </div>
-          <div class="card-meta">
-            <span>${entry.createdAt || ""}</span>
-          </div>
-          <p class="card-desc">${this.highlightText(entry.description || "暂无描述")}</p>
           <div class="card-footer">
             <div class="card-tags">
               ${entry.tags.map((t) => `<span class="card-tag">#${this.highlightText(t)}</span>`).join("")}
             </div>
             <div class="card-actions">
               <button class="fav-btn ${isFav ? "favorited" : ""}" data-id="${entry.id}" title="收藏" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">
-                ${isFav ? "★" : "☆"}
+                ${isFav ? "<i data-lucide=\"star\" style=\"width:16px;height:16px;stroke-width:2.5;fill:currentColor;\"></i>" : "<i data-lucide=\"star\" style=\"width:16px;height:16px;stroke-width:2;\"></i>"}
               </button>
             </div>
           </div>
@@ -391,11 +423,19 @@ const APP = {
     if (!pager) return;
 
     if (!paged || paged.totalPages <= 1) {
-      pager.innerHTML = "";
+      if (paged && paged.totalPages === 1) {
+        pager.innerHTML = `<span class="page-info">共 1 页</span>`;
+      } else {
+        pager.innerHTML = "";
+      }
       return;
     }
 
     let html = `<span class="page-info">第 ${paged.page}/${paged.totalPages} 页</span>`;
+
+    // Go-to-page input
+    html += `<input type="number" class="go-to-page-input" min="1" max="${paged.totalPages}" value="${paged.page}" aria-label="跳转到指定页">`;
+
     html += `<button class="page-btn ${paged.page === 1 ? "disabled" : ""}" data-page="${paged.page - 1}">‹</button>`;
 
     const maxButtons = 5;
@@ -421,6 +461,8 @@ const APP = {
     html += `<button class="page-btn ${paged.page === paged.totalPages ? "disabled" : ""}" data-page="${paged.page + 1}">›</button>`;
 
     pager.innerHTML = html;
+
+    // Page button click handler
     pager.querySelectorAll(".page-btn:not(.disabled)").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.currentPage = parseInt(btn.dataset.page);
@@ -428,6 +470,25 @@ const APP = {
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
     });
+
+    // Go-to-page input handler
+    const gotoInput = pager.querySelector(".go-to-page-input");
+    if (gotoInput) {
+      gotoInput.addEventListener("change", () => {
+        let page = parseInt(gotoInput.value);
+        if (isNaN(page)) page = 1;
+        page = Math.max(1, Math.min(page, paged.totalPages));
+        gotoInput.value = page;
+        this.currentPage = page;
+        this.renderCards();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      gotoInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          gotoInput.dispatchEvent(new Event("change"));
+        }
+      });
+    }
   },
 
   toggleSort() {
@@ -450,8 +511,12 @@ const APP = {
     let debounceTimer;
 
     searchInput.addEventListener("focus", () => {
-      if (searchPanel && this.searchQuery.length > 0) {
+      if (searchPanel) {
         searchPanel.style.display = "block";
+        // Show history when focused and no query
+        if (!searchInput.value.trim()) {
+          this.renderSearchSuggestions("");
+        }
       }
     });
 
@@ -462,7 +527,7 @@ const APP = {
       debounceTimer = setTimeout(() => {
         this.searchQuery = val;
         this.currentPage = 1;
-        SearchHistory.add(val);
+        if (val.length > 0) SearchHistory.add(val);
         this.renderCards();
         this.updateStats();
         this.renderActiveFilters();
@@ -606,6 +671,9 @@ const APP = {
     if (themeToggle)
       themeToggle.addEventListener("click", () => this.toggleTheme());
 
+    const deployBtn = document.getElementById("deployBtn");
+    if (deployBtn)
+      deployBtn.addEventListener("click", () => ADMIN.deployToGitHub());
     const exportBtn = document.getElementById("exportBtn");
     if (exportBtn)
       exportBtn.addEventListener("click", () => ADMIN.exportJSON());
@@ -638,6 +706,39 @@ const APP = {
   renderSearchSuggestions(query) {
     const container = document.getElementById("searchSuggestions");
     if (!container) return;
+
+    if (!query || query.length === 0) {
+      // Show search history when input is focused but empty
+      const history = SearchHistory.getHistory();
+      if (history.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = history.slice(0, 5)
+        .map((h) => `<div class="search-suggestion" data-history="${this.escapeHtml(h)}">
+        <i data-lucide="clock" class="search-suggestion-icon"></i>
+        <span class="search-suggestion-text">${this.escapeHtml(h)}</span>
+        <span class="search-suggestion-hint">搜索历史</span>
+      </div>`)
+        .join("");
+      container.querySelectorAll(".search-suggestion").forEach((el) => {
+        el.addEventListener("click", () => {
+          const q = el.dataset.history;
+          document.getElementById("searchInput").value = q;
+          document.getElementById("searchPanel").style.display = "none";
+          this.searchQuery = q;
+          this.currentPage = 1;
+          SearchHistory.add(q);
+          this.renderCards();
+          this.updateStats();
+          this.renderActiveFilters();
+          lucide.createIcons();
+        });
+      });
+      lucide.createIcons();
+      return;
+    }
+
     if (!this.searchIndex) {
       container.innerHTML = "";
       return;
@@ -797,14 +898,22 @@ const APP = {
       .join(" ");
     document.getElementById("drawerDesc").textContent =
       entry.description || "暂无描述";
-    document.getElementById("drawerFavBtn").innerHTML = this.isFavorite(
-      entry.id,
-    )
-      ? '<i data-lucide="star" style="fill:var(--accent);color:var(--accent);"></i>'
-      : '<i data-lucide="star"></i>';
+
+    const isFav = this.isFavorite(entry.id);
+    const favBtn = document.getElementById("drawerFavBtn");
+    favBtn.innerHTML = isFav
+      ? '<i data-lucide="star" style="fill:var(--accent);color:var(--accent);width:14px;height:14px;stroke-width:2.5;"></i> 已收藏'
+      : '<i data-lucide="star"></i> 收藏';
+
+    /* File type meta */
+    const fileType = FileType.detect(entry.path);
+    const typeIcon = this.getLucideIcon(fileType);
+    const typeItem = document.getElementById("drawerFileType");
+    if (typeItem) typeItem.innerHTML = `<i data-lucide="${typeIcon}" style="width:14px;height:14px;"></i> ${fileType}`;
+    const sizeItem = document.getElementById("drawerFileSize");
+    if (sizeItem) sizeItem.innerHTML = `<i data-lucide="hard-drive" style="width:14px;height:14px;"></i> ${entry.path ? entry.path.split("/").pop() : "-"}`;
 
     const preview = document.getElementById("drawerPreview");
-    const fileType = FileType.detect(entry.path);
 
     if (entry.path && FileType.isPreviewable(fileType)) {
       const basePath = window.location.pathname.replace(/\/[^\/]*$/, "/");
@@ -820,7 +929,13 @@ const APP = {
           })
           .then((text) => {
             if (typeof marked !== "undefined") {
-              preview.innerHTML = marked.parse(text);
+              const rendered = marked.parse(text);
+              // Sanitize: remove <script> tags and onload/onerror attributes
+              let sanitized = rendered
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+                .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, "")
+                .replace(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "");
+              preview.innerHTML = sanitized;
             } else {
               preview.innerHTML = `<pre style="white-space:pre-wrap;">${this.escapeHtml(text)}</pre>`;
             }
@@ -925,27 +1040,44 @@ const APP = {
     Toast.success("下载已开始");
   },
 
-  drawerDelete() {
+  async drawerDelete() {
     if (!this.currentDrawerId) return;
     const entry = this.data.entries.find((e) => e.id === this.currentDrawerId);
     if (!entry) return;
-    ConfirmDialog.show(`确定要删除「${entry.title}」吗？`).then((confirmed) => {
-      if (!confirmed) return;
-      this.data.entries = this.data.entries.filter(
-        (e) => e.id !== this.currentDrawerId,
-      );
-      this.rebuildMetadata();
-      this.setupSearch();
-      this.saveData();
-      this.renderSidebar();
-      this.renderCards();
-      this.updateStats();
-      this.renderActiveFilters();
-      this.closeDrawer();
-      if (document.getElementById("adminPanel").style.display !== "none")
-        ADMIN.renderTable();
-      Toast.success("删除成功");
-    });
+    const confirmed = await ConfirmDialog.show(`确定要删除「${entry.title}」吗？此操作不可撤销。`);
+    if (!confirmed) return;
+    const id = this.currentDrawerId;
+
+    if (this.apiMode) {
+      try {
+        await API.deleteEntry(id);
+      } catch (err) {
+        Toast.error("删除失败: " + err.message);
+        return;
+      }
+    } else {
+      try {
+        const raw = localStorage.getItem("kb_localOverrides");
+        const overrides = raw ? JSON.parse(raw) : { edits: {}, adds: [], removes: [] };
+        if (!overrides.removes) overrides.removes = [];
+        overrides.removes.push(id);
+        delete overrides.edits[id];
+        localStorage.setItem("kb_localOverrides", JSON.stringify(overrides));
+      } catch (e) {}
+    }
+
+    this.data.entries = this.data.entries.filter((e) => e.id !== id);
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderSidebar();
+    this.renderCards();
+    this.updateStats();
+    this.renderActiveFilters();
+    this.closeDrawer();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("删除成功");
   },
 
   openForm(entry = null) {
@@ -985,7 +1117,7 @@ const APP = {
     document.getElementById("formModal").style.display = "none";
   },
 
-  handleFormSubmit(e) {
+  async handleFormSubmit(e) {
     e.preventDefault();
     const editId = document.getElementById("editId").value;
     const titleInput = document.getElementById("formTitle");
@@ -1007,37 +1139,75 @@ const APP = {
       .filter(Boolean);
     const path = pathInput.value.trim();
     const description = descInput.value.trim();
+    const title = titleInput.value.trim();
 
-    if (editId) {
-      const entry = this.data.entries.find((en) => en.id === parseInt(editId));
-      if (entry) {
-        const oldCat = entry.category;
-        entry.title = titleInput.value.trim();
-        entry.category = category;
-        entry.tags = tags;
-        entry.path = path;
-        entry.description = description;
-        if (oldCat !== category) {
-          this.categories.delete(oldCat);
+    if (this.apiMode) {
+      try {
+        if (editId) {
+          const updated = await API.updateEntry(parseInt(editId), {
+            title,
+            category,
+            tags,
+            path,
+            description,
+          });
+          const idx = this.data.entries.findIndex((en) => en.id === updated.id);
+          if (idx !== -1) this.data.entries[idx] = updated;
+          Toast.success("更新成功");
+        } else {
+          const created = await API.createEntry({
+            title,
+            category,
+            tags,
+            path,
+            description,
+            createdAt: new Date().toISOString().slice(0, 10),
+            type: FileType.detect(path),
+          });
+          this.data.entries.push(created);
+          this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+          Toast.success("添加成功");
         }
-        this.categories.add(category);
-        tags.forEach((t) => this.tags.add(t));
+      } catch (err) {
+        Toast.error("保存失败: " + err.message);
+        return;
       }
     } else {
-      this.data.entries.push({
-        id: this.nextId++,
-        title: titleInput.value.trim(),
-        category,
-        tags,
-        path,
-        description,
-        createdAt: new Date().toISOString().slice(0, 10),
-        type: FileType.detect(path),
-      });
-      this.categories.add(category);
-      tags.forEach((t) => this.tags.add(t));
+      if (editId) {
+        const entry = this.data.entries.find((en) => en.id === parseInt(editId));
+        if (entry) {
+          const oldCat = entry.category;
+          entry.title = title;
+          entry.category = category;
+          entry.tags = tags;
+          entry.path = path;
+          entry.description = description;
+          if (oldCat !== category) {
+            this.categories.delete(oldCat);
+          }
+          this.categories.add(category);
+          tags.forEach((t) => this.tags.add(t));
+          Toast.success("更新成功");
+        }
+      } else {
+        this.data.entries.push({
+          id: this.nextId++,
+          title,
+          category,
+          tags,
+          path,
+          description,
+          createdAt: new Date().toISOString().slice(0, 10),
+          type: FileType.detect(path),
+        });
+        this.categories.add(category);
+        tags.forEach((t) => this.tags.add(t));
+        Toast.success("添加成功");
+      }
+      this._persistLocalDelta(editId ? "edit" : "add", editId ? parseInt(editId) : null);
     }
 
+    this.rebuildMetadata();
     this.setupSearch();
     this.saveData();
     this.renderSidebar();
@@ -1045,14 +1215,97 @@ const APP = {
     this.updateStats();
     this.renderActiveFilters();
     this.closeForm();
-    Toast.success(editId ? "更新成功" : "添加成功");
 
     const adminPanel = document.getElementById("adminPanel");
     if (adminPanel && adminPanel.style.display !== "none") ADMIN.renderTable();
   },
 
+  _persistLocalDelta(operation, entryId) {
+    try {
+      const raw = localStorage.getItem("kb_localOverrides");
+      const overrides = raw ? JSON.parse(raw) : { edits: {}, adds: [], removes: [] };
+      if (!overrides.edits) overrides.edits = {};
+      if (!overrides.adds) overrides.adds = [];
+      if (!overrides.removes) overrides.removes = [];
+
+      if (operation === "add") {
+        // Find the entry we just added
+        const entry = this.data.entries.find((e) => e.id === this.nextId - 1);
+        if (entry) overrides.adds.push(JSON.parse(JSON.stringify(entry)));
+      } else if (operation === "edit" && entryId) {
+        const entry = this.data.entries.find((e) => e.id === entryId);
+        if (entry) overrides.edits[entryId] = JSON.parse(JSON.stringify(entry));
+      }
+      localStorage.setItem("kb_localOverrides", JSON.stringify(overrides));
+    } catch (e) {
+      console.warn("Failed to persist local delta:", e);
+    }
+  },
+
+  _applyLocalOverrides() {
+    try {
+      const raw = localStorage.getItem("kb_localOverrides");
+      if (!raw) return;
+      const overrides = JSON.parse(raw);
+      if (!overrides.edits && !overrides.adds && !overrides.removes) return;
+
+      const serverIds = new Set(this.data.entries.map((e) => e.id));
+      let modified = 0, added = 0;
+
+      // Apply edits
+      if (overrides.edits) {
+        Object.values(overrides.edits).forEach((entry) => {
+          const idx = this.data.entries.findIndex((e) => e.id === entry.id);
+          if (idx !== -1) {
+            this.data.entries[idx] = { ...this.data.entries[idx], ...entry };
+            modified++;
+          }
+        });
+      }
+
+      // Apply adds (only if entry doesn't already exist)
+      if (overrides.adds) {
+        overrides.adds.forEach((entry) => {
+          if (!serverIds.has(entry.id)) {
+            this.data.entries.push(entry);
+            added++;
+          }
+        });
+      }
+
+      // Apply removes
+      if (overrides.removes) {
+        overrides.removes.forEach((id) => {
+          this.data.entries = this.data.entries.filter((e) => e.id !== id);
+        });
+      }
+
+      if (modified > 0 || added > 0) {
+        console.log(`Applied local overrides: ${modified} edits, ${added} adds`);
+        this.rebuildMetadata();
+        this.setupSearch();
+      }
+    } catch (e) {
+      console.warn("Failed to apply local overrides:", e);
+    }
+  },
+
   saveData() {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+  },
+
+  saveToLocalOverrides() {
+    // Save local-only modifications to a separate key
+    // This captures entries added/modified/removed that aren't in the server index
+    const overrides = {
+      added: [],
+      modified: [],
+      removed: [],
+      lastSaved: new Date().toISOString(),
+    };
+    // Extract entries that are only in localStorage (not in server index)
+    // We store the delta so it can be re-applied on reload
+    localStorage.setItem("kb_localOverrides", JSON.stringify(overrides));
   },
 
   updateStats() {
@@ -1168,43 +1421,81 @@ const APP = {
     if (countEl) countEl.textContent = `已选 ${this.selectedIds.size} 项`;
   },
 
-  batchDelete() {
+  async batchDelete() {
     if (this.selectedIds.size === 0) {
       Toast.warning("请选择要删除的条目");
       return;
     }
-    ConfirmDialog.show(
-      `确定删除选中的 ${this.selectedIds.size} 个条目吗？`,
-    ).then((confirmed) => {
-      if (!confirmed) return;
-      this.data.entries = this.data.entries.filter(
-        (e) => !this.selectedIds.has(e.id),
-      );
-      this.selectedIds.clear();
-      this.batchMode = false;
-      document.getElementById("batchToolbar").style.display = "none";
-      this.rebuildMetadata();
-      this.setupSearch();
-      this.saveData();
-      this.renderSidebar();
-      this.renderCards();
-      this.updateStats();
-      this.renderActiveFilters();
-      if (document.getElementById("adminPanel").style.display !== "none")
-        ADMIN.renderTable();
-      Toast.success("删除成功");
-    });
+    const confirmed = await ConfirmDialog.show(
+      `确定删除选中的 ${this.selectedIds.size} 个条目吗？此操作不可撤销。`,
+    );
+    if (!confirmed) return;
+    const idsToRemove = [...this.selectedIds];
+
+    if (this.apiMode) {
+      try {
+        for (const id of idsToRemove) {
+          await API.deleteEntry(id);
+        }
+      } catch (err) {
+        Toast.error("批量删除失败: " + err.message);
+        return;
+      }
+    } else {
+      try {
+        const raw = localStorage.getItem("kb_localOverrides");
+        const overrides = raw ? JSON.parse(raw) : { edits: {}, adds: [], removes: [] };
+        if (!overrides.removes) overrides.removes = [];
+        idsToRemove.forEach(id => {
+          if (!overrides.removes.includes(id)) overrides.removes.push(id);
+        });
+        localStorage.setItem("kb_localOverrides", JSON.stringify(overrides));
+      } catch (e) {}
+    }
+
+    this.data.entries = this.data.entries.filter(
+      (e) => !idsToRemove.includes(e.id),
+    );
+    this.selectedIds.clear();
+    this.batchMode = false;
+    document.getElementById("batchToolbar").style.display = "none";
+
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderSidebar();
+    this.renderCards();
+    this.updateStats();
+    this.renderActiveFilters();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("删除成功");
   },
 
-  batchMoveCategory() {
+  async batchMoveCategory() {
     if (this.selectedIds.size === 0) {
       Toast.warning("请选择要移动的条目");
       return;
     }
     const cat = prompt("请输入目标分类名称：");
     if (!cat) return;
+
+    const idsToMove = [...this.selectedIds];
+    const entriesToMove = this.data.entries.filter((e) => this.selectedIds.has(e.id));
+
+    if (this.apiMode) {
+      try {
+        for (const entry of entriesToMove) {
+          await API.updateEntry(entry.id, { category: cat });
+        }
+      } catch (err) {
+        Toast.error("批量移动失败: " + err.message);
+        return;
+      }
+    }
+
     this.data.entries.forEach((e) => {
-      if (this.selectedIds.has(e.id)) e.category = cat;
+      if (idsToMove.includes(e.id)) e.category = cat;
     });
     this.selectedIds.clear();
     this.batchMode = false;
