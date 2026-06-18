@@ -118,7 +118,7 @@ const ADMIN = {
     reader.readAsText(file);
     event.target.value = '';
   },
-};
+
   // Clean empty categories after deletions
   cleanStaleCategories() {
     APP.categories.clear();

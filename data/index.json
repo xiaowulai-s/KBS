@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
-  "generatedAt": "2026-06-18T03:03:24Z",
+  "generatedAt": "2026-06-18T03:05:10Z",
   "entries": [
     {
       "id": 1,
@@ -70,6 +70,20 @@
       "path": "docs/js-basics.md",
       "description": "JavaScript 基础教程",
       "createdAt": "2026-06-18",
+      "type": "markdown"
+    },
+    {
+      "id": 6,
+      "title": "Linux",
+      "category": "项目管理",
+      "tags": [
+        "Md",
+        "文档",
+        "项目管理"
+      ],
+      "path": "docs/Linux.md",
+      "description": "智能 Linux 门禁系统详细技术方案 1. 硬件资源深度规划 (Hardware Deep Dive) 基于 Linux 的灵活性，建议采用具备 NPU 加速的国产 SoC 方案。 1.1 核心计算平台 推荐芯片: Rockchip RK...",
+      "createdAt": "2026-02-25",
       "type": "markdown"
     },
     {

@@ -12,5 +12,9 @@ desktop.ini
 *.swp
 *.swo
 
+# Python
+__pycache__/
+*.pyc
+
 # Local data (should not be committed)
 # data/index.json  # 需要提交到仓库供 GitHub Pages 使用

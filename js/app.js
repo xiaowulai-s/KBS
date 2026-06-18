@@ -1,6 +1,27 @@
-﻿// ====================================// app.js - Knowledge Base Main Application// ====================================const APP = {  STORAGE_KEY: 'knowledgeBaseData',  data: null,  categories: new Set(),  tags: new Set(),  activeCategory: null,  activeTag: null,  searchQuery: '',  searchIndex: null,  nextId: 1,  favorites: new Set(),  sortField: 'createdAt',  sortDirection: 'desc',  currentPage: 1,  pageSize: 12,  keyboardNavIndex: -1,
+﻿// ====================================
+// app.js - Knowledge Base Main Application
+// ====================================
+const APP = {
+  STORAGE_KEY: 'knowledgeBaseData',
+  data: null,
+  categories: new Set(),
+  tags: new Set(),
+  activeCategory: null,
+  activeTag: null,
+  searchQuery: '',
+  searchIndex: null,
+  nextId: 1,
+  favorites: new Set(),
+  sortField: 'createdAt',
+  sortDirection: 'desc',
+  currentPage: 1,
+  pageSize: 12,
+  keyboardNavIndex: -1,
   batchMode: false,
-  selectedIds: new Set(),  searchHistoryDropdown: null,  // Initialize  async init() {
+  selectedIds: new Set(),
+  searchHistoryDropdown: null,
+  // Initialize
+  async init() {
     this.registerSW();    Skeleton.show(document.getElementById('entryGrid'));    await this.loadData();
     this.loadUrlState();
     this.setupOfflineDetection();    this.loadFavorites();    this.setupSearch();    this.bindEvents();    this.setupKeyboardShortcuts();    this.renderFilters();    this.renderCards();    this.updateStats();    this.updateBreadcrumb();    this.initTheme();    Skeleton.hide(document.getElementById('entryGrid'));  },  // Load data from JSON or localStorage  async loadData() {    const stored = localStorage.getItem(this.STORAGE_KEY);    if (stored) {      try {        this.data = JSON.parse(stored);        this.rebuildMetadata();        return;      } catch (e) {        console.warn('localStorage data corrupted, reloading from JSON');      }    }    try {      const resp = await fetch('data/index.json');      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);      this.data = await resp.json();      this.rebuildMetadata();      this.nextId = Math.max(...this.data.entries.map(e => e.id), 0) + 1;      console.log('✅ Data loaded:', this.data.entries.length, 'entries');    } catch (err) {      console.error('❌ Failed to load data:', err);      this.data = { version: '1.0.0', siteTitle: '知识库', entries: [] };      this.rebuildMetadata();    }  },  rebuildMetadata() {    this.categories.clear();    this.tags.clear();    this.data.entries.forEach(entry => {      this.categories.add(entry.category);
