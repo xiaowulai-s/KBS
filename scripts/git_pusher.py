@@ -96,15 +96,30 @@ class GitPusher:
             self._run(["reset", "HEAD"])
             return False, f"git commit 失败：{commit_result.stderr.strip()}"
 
+        # 提交后，如果工作区仍有其他未提交修改，临时 stash 以便 pull --rebase
+        stashed = False
+        if self.has_changes():
+            stash_result = self._run(["stash", "push", "-m", "auto-push temp stash"])
+            if stash_result.returncode == 0:
+                stashed = True
+
         # 推送前拉取更新（rebase 避免冲突）
         pull_result = self._run(["pull", "--rebase", self.remote, self.branch])
         if pull_result.returncode != 0:
+            if stashed:
+                self._run(["stash", "pop"])
             self._run(["rebase", "--abort"])
             return False, f"git pull --rebase 失败：{pull_result.stderr.strip()}"
 
         # 推送
         push_result = self._run(["push", self.remote, self.branch])
         if push_result.returncode != 0:
+            if stashed:
+                self._run(["stash", "pop"])
             return False, f"git push 失败：{push_result.stderr.strip()}"
+
+        # 恢复临时 stash 的修改
+        if stashed:
+            self._run(["stash", "pop"])
 
         return True, "已成功提交并推送到远程仓库"
