@@ -5,7 +5,6 @@
 """
 
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -13,7 +12,10 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DOCS_DIR = BASE_DIR / "docs"
-GENERATE_SCRIPT = BASE_DIR / "scripts" / "generate_index.py"
+
+# 将项目根目录加入路径，以便导入 generate_index
+sys.path.insert(0, str(BASE_DIR / "scripts"))
+from generate_index import main as generate_index_main
 
 
 def get_files_snapshot(directory: Path) -> dict:
@@ -33,32 +35,17 @@ def get_files_snapshot(directory: Path) -> dict:
 
 def regenerate_index():
     """调用 generate_index.py 重新生成索引"""
-    print("\n检测到文件变动，正在重新生成 index.json...")
+    print("\n检测到文件变动，正在重新生成 index.json...", flush=True)
     try:
-        result = subprocess.run(
-            [sys.executable, str(GENERATE_SCRIPT)],
-            cwd=BASE_DIR,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        if result.returncode == 0:
-            print(result.stdout)
-        else:
-            print("生成失败：")
-            print(result.stderr)
+        generate_index_main()
     except Exception as e:
-        print(f"调用生成脚本失败：{e}")
+        print(f"生成失败：{e}", flush=True)
 
 
 def main():
     """主循环：监控文件变动"""
     if not DOCS_DIR.exists():
         print(f"错误：docs 目录不存在：{DOCS_DIR}")
-        return 1
-
-    if not GENERATE_SCRIPT.exists():
-        print(f"错误：生成脚本不存在：{GENERATE_SCRIPT}")
         return 1
 
     print(f"开始监控目录：{DOCS_DIR}")
@@ -93,7 +80,7 @@ def main():
                 regenerate_index()
                 last_snapshot = current_snapshot
             else:
-                print(f"监控中... 当前 {len(current_snapshot)} 个文件", end="\r")
+                print(f"监控中... 当前 {len(current_snapshot)} 个文件", end="\r", flush=True)
 
     except KeyboardInterrupt:
         print("\n\n已停止监控")

@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
-  "generatedAt": "2026-06-18T02:54:40Z",
+  "generatedAt": "2026-06-18T03:03:24Z",
   "entries": [
     {
       "id": 1,
@@ -109,19 +109,6 @@
       ],
       "path": "docs/requirements.md",
       "description": "项目需求文档 v2.0",
-      "createdAt": "2026-06-18",
-      "type": "markdown"
-    },
-    {
-      "id": 9,
-      "title": "测试文件",
-      "category": "未分类",
-      "tags": [
-        "Md",
-        "文档"
-      ],
-      "path": "docs/test-watch.md",
-      "description": "测试文件",
       "createdAt": "2026-06-18",
       "type": "markdown"
     }
