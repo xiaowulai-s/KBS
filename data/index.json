@@ -1,67 +1,91 @@
-﻿{
+{
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
+  "generatedAt": "2026-06-18T02:42:35Z",
   "entries": [
     {
       "id": 1,
-      "title": "JavaScript 基础教程",
-      "category": "编程教程",
-      "tags": ["JavaScript", "入门"],
-      "path": "docs/js-basics.md",
-      "description": "JavaScript 语言的基础语法和核心概念讲解",
-      "createdAt": "2026-06-15",
+      "title": "API 接口设计规范",
+      "category": "技术文档",
+      "tags": [
+        "Md",
+        "文档",
+        "技术文档"
+      ],
+      "path": "docs/api-spec.md",
+      "description": "API 接口设计规范",
+      "createdAt": "2026-06-18",
       "type": "markdown"
     },
     {
       "id": 2,
       "title": "CSS 布局技巧汇总",
       "category": "编程教程",
-      "tags": ["CSS", "布局"],
+      "tags": [
+        "Md",
+        "文档",
+        "编程教程"
+      ],
       "path": "docs/css-layout.md",
-      "description": "Flexbox、Grid 等现代 CSS 布局方法总结",
-      "createdAt": "2026-06-16",
+      "description": "CSS 布局技巧汇总",
+      "createdAt": "2026-06-18",
       "type": "markdown"
     },
     {
       "id": 3,
-      "title": "项目需求文档 v2.0",
-      "category": "项目管理",
-      "tags": ["需求", "文档"],
-      "path": "docs/requirements.md",
-      "description": "项目二期需求说明和功能规划",
-      "createdAt": "2026-06-17",
-      "type": "markdown"
+      "title": "EPM570T144C5N",
+      "category": "技术文档",
+      "tags": [
+        "PDF",
+        "技术文档"
+      ],
+      "path": "docs/EPM570T144C5N.pdf",
+      "description": "EPM570T144C5N 相关文件",
+      "createdAt": "2026-06-10",
+      "type": "pdf"
     },
     {
       "id": 4,
-      "title": "团队会议记录 - 6月",
-      "category": "团队协作",
-      "tags": ["会议", "记录"],
-      "path": "docs/meeting-june.md",
-      "description": "6月份团队周会会议纪要汇总",
-      "createdAt": "2026-06-17",
+      "title": "JavaScript 基础教程",
+      "category": "编程教程",
+      "tags": [
+        "Md",
+        "文档",
+        "编程教程"
+      ],
+      "path": "docs/js-basics.md",
+      "description": "JavaScript 基础教程",
+      "createdAt": "2026-06-18",
       "type": "markdown"
     },
     {
       "id": 5,
-      "title": "API 接口设计规范",
-      "category": "技术文档",
-      "tags": ["API", "规范"],
-      "path": "docs/api-spec.md",
-      "description": "RESTful API 接口命名、参数、返回值的统一规范",
-      "createdAt": "2026-06-14",
+      "title": "团队会议记录 - 6月",
+      "category": "团队协作",
+      "tags": [
+        "Md",
+        "文档",
+        "团队协作"
+      ],
+      "path": "docs/meeting-june.md",
+      "description": "团队会议记录 - 6月",
+      "createdAt": "2026-06-18",
       "type": "markdown"
     },
     {
       "id": 6,
-      "title": "EPM570T144C5N 数据手册",
-      "category": "技术文档",
-      "tags": ["Altera", "FPGA", "PDF"],
-      "path": "docs/EPM570T144C5N.pdf",
-      "description": "Altera EPM570T144C5N 可编程逻辑器件数据手册",
-      "createdAt": "2026-06-17",
-      "type": "pdf"
+      "title": "项目需求文档 v2.0",
+      "category": "项目管理",
+      "tags": [
+        "Md",
+        "文档",
+        "项目管理"
+      ],
+      "path": "docs/requirements.md",
+      "description": "项目需求文档 v2.0",
+      "createdAt": "2026-06-18",
+      "type": "markdown"
     }
   ]
 }
