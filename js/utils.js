@@ -232,6 +232,7 @@ const Skeleton = {
   },
 
   hide(grid) {
-    grid.innerHTML = '';
+    const skeletons = grid.querySelectorAll('.skeleton-card');
+    skeletons.forEach(el => el.remove());
   },
 };
