@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
-  "generatedAt": "2026-06-18T06:29:15Z",
+  "generatedAt": "2026-06-18T06:37:37Z",
   "entries": [
     {
       "id": 1,
@@ -149,6 +149,18 @@
       ],
       "path": "docs/requirements.md",
       "description": "项目需求文档 v2.0",
+      "createdAt": "2026-06-18",
+      "type": "markdown"
+    },
+    {
+      "id": 12,
+      "title": "Deploy ????",
+      "category": "??",
+      "tags": [
+        "deploy"
+      ],
+      "path": "docs/deploy-test.md",
+      "description": "????????",
       "createdAt": "2026-06-18",
       "type": "markdown"
     }
