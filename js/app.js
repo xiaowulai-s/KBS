@@ -38,42 +38,105 @@ const APP = {
   },
 
   async loadData() {
+    const stored = localStorage.getItem(this.STORAGE_KEY);
+    if (stored) {
+      try {
+        this.data = JSON.parse(stored);
+        this.rebuildMetadata();
+        this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+        console.log(
+          "Loaded from localStorage:",
+          this.data.entries.length,
+          "entries",
+        );
+        this.checkServerUpdate();
+        return;
+      } catch (e) {
+        console.warn("localStorage corrupted, reloading from server");
+      }
+    }
     try {
       const resp = await fetch("data/index.json?v=" + Date.now());
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       this.data = await resp.json();
       this.rebuildMetadata();
       this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
-      const ids = this.data.entries.map((e) => e.id);
-      const dupes = ids.filter((id, idx) => ids.indexOf(id) !== idx);
-      if (dupes.length > 0) {
-        console.warn("Duplicate IDs detected:", [...new Set(dupes)]);
-        const usedIds = new Set();
-        this.data.entries.forEach((entry) => {
-          if (usedIds.has(entry.id)) {
-            entry.id = this.nextId++;
-          }
-          usedIds.add(entry.id);
-        });
-        this.rebuildMetadata();
-      }
-      console.log("Data loaded:", this.data.entries.length, "entries");
+      this.saveData();
+      console.log("Loaded from server:", this.data.entries.length, "entries");
     } catch (err) {
       console.error("Failed to load data:", err);
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        try {
-          this.data = JSON.parse(stored);
-          this.rebuildMetadata();
-          this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
-          console.warn("Loaded from localStorage fallback");
-          return;
-        } catch (e) {
-          console.warn("localStorage corrupted");
-        }
-      }
       this.data = { version: "1.0.0", siteTitle: "知识库", entries: [] };
       this.rebuildMetadata();
+    }
+  },
+
+  async checkServerUpdate() {
+    try {
+      const resp = await fetch("data/index.json?v=" + Date.now());
+      if (!resp.ok) return;
+      const serverData = await resp.json();
+      const serverVersion = serverData.generatedAt || serverData.version || "";
+      const localVersion = this.data.generatedAt || this.data.version || "";
+      if (serverVersion > localVersion) {
+        this.serverUpdate = serverData;
+        const count = serverData.entries.length;
+        Toast.show("服务端有更新（" + count + " 条）", "info", 8000, {
+          label: "合并更新",
+          callback: () => this.mergeServerUpdate(),
+        });
+      }
+    } catch (e) {
+      /* silent */
+    }
+  },
+
+  mergeServerUpdate() {
+    if (!this.serverUpdate) return;
+    const localIds = new Set(this.data.entries.map((e) => e.id));
+    let added = 0;
+    this.serverUpdate.entries.forEach((entry) => {
+      if (!localIds.has(entry.id)) {
+        this.data.entries.push(entry);
+        localIds.add(entry.id);
+        added++;
+      }
+    });
+    this.data.generatedAt = this.serverUpdate.generatedAt;
+    this.serverUpdate = null;
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+    this.renderSidebar();
+    this.renderCards();
+    this.updateStats();
+    this.renderActiveFilters();
+    Toast.success("合并完成，新增 " + added + " 条");
+  },
+
+  async resetFromServer() {
+    const confirmed = await ConfirmDialog.show(
+      "将丢弃所有本地修改，重置为服务端数据。确定继续？",
+    );
+    if (!confirmed) return;
+    try {
+      const resp = await fetch("data/index.json?v=" + Date.now());
+      if (!resp.ok) throw new Error("获取失败");
+      this.data = await resp.json();
+      this.rebuildMetadata();
+      this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+      this.serverUpdate = null;
+      this.setupSearch();
+      this.saveData();
+      this.renderSidebar();
+      this.renderCards();
+      this.updateStats();
+      this.renderActiveFilters();
+      if (document.getElementById("adminPanel").style.display !== "none")
+        ADMIN.renderTable();
+      Toast.success("已重置为服务端数据");
+    } catch (err) {
+      Toast.error("重置失败: " + err.message);
     }
   },
 
