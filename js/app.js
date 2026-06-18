@@ -1,7 +1,3 @@
-// ====================================
-// app.js - Knowledge Base Main Application
-// ====================================
-
 const APP = {
   STORAGE_KEY: "knowledgeBaseData",
   data: null,
@@ -17,12 +13,11 @@ const APP = {
   currentPage: 1,
   pageSize: 12,
   keyboardNavIndex: -1,
-  searchHistoryDropdown: null,
   favorites: new Set(),
+  showFavoritesOnly: false,
   batchMode: false,
   selectedIds: new Set(),
 
-  // Initialize
   async init() {
     this.registerSW();
     Skeleton.show(document.getElementById("entryGrid"));
@@ -33,36 +28,50 @@ const APP = {
     this.setupSearch();
     this.bindEvents();
     this.setupKeyboardShortcuts();
-    this.renderFilters();
+    this.renderSidebar();
     this.renderCards();
     this.updateStats();
-    this.updateBreadcrumb();
+    this.renderActiveFilters();
     this.initTheme();
+    lucide.createIcons();
     Skeleton.hide(document.getElementById("entryGrid"));
   },
 
-  // Load data from JSON or localStorage
   async loadData() {
-    const stored = localStorage.getItem(this.STORAGE_KEY);
-    if (stored) {
-      try {
-        this.data = JSON.parse(stored);
-        this.rebuildMetadata();
-        return;
-      } catch (e) {
-        console.warn("localStorage data corrupted, reloading from JSON");
-      }
-    }
-
     try {
-      const resp = await fetch("data/index.json");
+      const resp = await fetch("data/index.json?v=" + Date.now());
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       this.data = await resp.json();
       this.rebuildMetadata();
       this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
-      console.log("✅ Data loaded:", this.data.entries.length, "entries");
+      const ids = this.data.entries.map((e) => e.id);
+      const dupes = ids.filter((id, idx) => ids.indexOf(id) !== idx);
+      if (dupes.length > 0) {
+        console.warn("Duplicate IDs detected:", [...new Set(dupes)]);
+        const usedIds = new Set();
+        this.data.entries.forEach((entry) => {
+          if (usedIds.has(entry.id)) {
+            entry.id = this.nextId++;
+          }
+          usedIds.add(entry.id);
+        });
+        this.rebuildMetadata();
+      }
+      console.log("Data loaded:", this.data.entries.length, "entries");
     } catch (err) {
-      console.error("❌ Failed to load data:", err);
+      console.error("Failed to load data:", err);
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (stored) {
+        try {
+          this.data = JSON.parse(stored);
+          this.rebuildMetadata();
+          this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+          console.warn("Loaded from localStorage fallback");
+          return;
+        } catch (e) {
+          console.warn("localStorage corrupted");
+        }
+      }
       this.data = { version: "1.0.0", siteTitle: "知识库", entries: [] };
       this.rebuildMetadata();
     }
@@ -122,7 +131,9 @@ const APP = {
 
   getFilteredEntries() {
     let entries = [...this.data.entries];
-
+    if (this.showFavoritesOnly) {
+      entries = entries.filter((e) => this.favorites.has(e.id));
+    }
     if (this.activeCategory) {
       entries = entries.filter((e) => e.category === this.activeCategory);
     }
@@ -142,256 +153,86 @@ const APP = {
           e.tags.some((t) => t.toLowerCase().includes(q)),
       );
     }
-
-    // Sort
     if (this.sortField === "createdAt") {
       entries = Sorter.sortByDate(entries, this.sortDirection === "asc");
     } else if (this.sortField === "title") {
       entries = Sorter.sortByTitle(entries, this.sortDirection === "asc");
     }
-
     return entries;
   },
 
   getPagedEntries() {
-    const filtered = this.getFilteredEntries();
-    return Pagination.getPage(filtered, this.currentPage, this.pageSize);
-  },
-
-  bindEvents() {
-    // Search input with autocomplete
-    const searchInput = document.getElementById("searchInput");
-    const clearBtn = document.getElementById("clearSearch");
-    let debounceTimer;
-
-    searchInput.addEventListener("focus", () =>
-      this.showSearchHistory(searchInput),
+    return Pagination.getPage(
+      this.getFilteredEntries(),
+      this.currentPage,
+      this.pageSize,
     );
-    searchInput.addEventListener("input", (e) => {
-      clearTimeout(debounceTimer);
-      const val = e.target.value.trim();
-      clearBtn.style.display = val ? "block" : "none";
-      debounceTimer = setTimeout(() => {
-        this.searchQuery = val;
-        this.currentPage = 1;
-        this.renderCards();
-        this.updateStats();
-        this.updateBreadcrumb();
-      }, 200);
-    });
-    searchInput.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        searchInput.blur();
-        this.hideSearchHistory();
-      }
-    });
+  },
 
-    // Batch operations
-    document
-      .getElementById("batchToggleBtn")
-      .addEventListener("click", () => this.toggleBatchMode());
-    document
-      .getElementById("batchDeleteBtn")
-      .addEventListener("click", () => this.batchDelete());
-    document
-      .getElementById("batchMoveBtn")
-      .addEventListener("click", () => this.batchMoveCategory());
+  renderSidebar() {
+    const catContainer = document.getElementById("sidebarCategories");
+    const tagContainer = document.getElementById("sidebarTags");
+    const favBtn = document.getElementById("sidebarFavoritesBtn");
+    const favCount = document.getElementById("sidebarFavCount");
 
-    clearBtn.addEventListener("click", () => {
-      searchInput.value = "";
-      clearBtn.style.display = "none";
-      this.searchQuery = "";
-      this.currentPage = 1;
-      this.renderCards();
-      this.updateStats();
-      this.updateBreadcrumb();
-    });
-
-    document.getElementById("batchCancelBtn").addEventListener("click", () => {
-      this.batchMode = false;
-      this.selectedIds.clear();
-      document.getElementById("batchToolbar").style.display = "none";
-      document.getElementById("batchToggleBtn").classList.remove("active");
-      this.renderCards();
-    });
-
-    document
-      .getElementById("addBtn")
-      .addEventListener("click", () => this.openForm());
-
-    document.getElementById("adminToggleBtn").addEventListener("click", () => {
-      const panel = document.getElementById("adminPanel");
-      panel.style.display = panel.style.display === "none" ? "block" : "none";
-      if (panel.style.display === "block") ADMIN.renderTable();
-    });
-    document.getElementById("closeAdmin").addEventListener("click", () => {
-      document.getElementById("adminPanel").style.display = "none";
-    });
-
-    document
-      .getElementById("detailClose")
-      .addEventListener("click", () => this.closeDetail());
-    document
-      .getElementById("detailOverlay")
-      .addEventListener("click", () => this.closeDetail());
-
-    document
-      .getElementById("formClose")
-      .addEventListener("click", () => this.closeForm());
-    document
-      .getElementById("formOverlay")
-      .addEventListener("click", () => this.closeForm());
-    document
-      .getElementById("formCancel")
-      .addEventListener("click", () => this.closeForm());
-
-    document
-      .getElementById("entryForm")
-      .addEventListener("submit", (e) => this.handleFormSubmit(e));
-
-    document
-      .getElementById("favoritesFilterBtn")
-      .addEventListener("click", () => this.toggleFavoritesFilter());
-    document
-      .getElementById("themeToggle")
-      .addEventListener("click", () => this.toggleTheme());
-
-    document
-      .getElementById("exportBtn")
-      .addEventListener("click", () => ADMIN.exportJSON());
-    document.getElementById("importBtn").addEventListener("click", () => {
-      document.getElementById("importFileInput").click();
-    });
-    document
-      .getElementById("importFileInput")
-      .addEventListener("change", (e) => ADMIN.importJSON(e));
-
-    // Sort controls
-    const sortBtn = document.getElementById("sortBtn");
-    if (sortBtn) {
-      sortBtn.addEventListener("click", () => this.toggleSort());
+    if (favBtn) {
+      favBtn.style.display = this.favorites.size > 0 ? "flex" : "none";
+      if (favCount) favCount.textContent = this.favorites.size;
     }
-  },
-
-  setupKeyboardShortcuts() {
-    document.addEventListener("keydown", (e) => {
-      // ESC to close modals
-      if (e.key === "Escape") {
-        const detailModal = document.getElementById("detailModal");
-        const formModal = document.getElementById("formModal");
-        const adminPanel = document.getElementById("adminPanel");
-
-        if (detailModal.style.display !== "none") {
-          this.closeDetail();
-        } else if (formModal.style.display !== "none") {
-          this.closeForm();
-        } else if (adminPanel.style.display !== "none") {
-          adminPanel.style.display = "none";
-        }
-      }
-
-      // Ctrl/Cmd + K to focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        document.getElementById("searchInput").focus();
-      }
-
-      // Arrow keys for card navigation
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        const cards = document.querySelectorAll(".entry-card");
-        if (cards.length === 0) return;
-
-        e.preventDefault();
-        if (e.key === "ArrowDown") {
-          this.keyboardNavIndex = Math.min(
-            this.keyboardNavIndex + 1,
-            cards.length - 1,
-          );
-        } else {
-          this.keyboardNavIndex = Math.max(this.keyboardNavIndex - 1, 0);
-        }
-        cards.forEach((c, i) =>
-          c.classList.toggle("keyboard-focus", i === this.keyboardNavIndex),
-        );
-        if (this.keyboardNavIndex >= 0) {
-          cards[this.keyboardNavIndex].scrollIntoView({
-            behavior: "smooth",
-            block: "nearest",
-          });
-        }
-      }
-
-      // Enter to open selected card
-      if (e.key === "Enter" && this.keyboardNavIndex >= 0) {
-        const cards = document.querySelectorAll(".entry-card");
-        if (cards[this.keyboardNavIndex]) {
-          cards[this.keyboardNavIndex].click();
-        }
-      }
-    });
-  },
-
-  renderFilters() {
-    const catContainer = document.getElementById("categoryFilters");
-    const tagContainer = document.getElementById("tagFilters");
 
     catContainer.innerHTML = "";
-    const catAllBtn = document.createElement("button");
-    catAllBtn.className =
-      "filter-tag" + (!this.activeCategory ? " active" : "");
-    catAllBtn.textContent = "全部";
-    catAllBtn.addEventListener("click", () => {
+    const catAll = document.createElement("button");
+    catAll.className =
+      "sidebar-tree-item" +
+      (!this.activeCategory && !this.showFavoritesOnly ? " active" : "");
+    catAll.innerHTML = `<i data-lucide="layers" class="sidebar-tree-icon"></i><span>全部分类</span><span class="sidebar-item-count">${this.data.entries.length}</span>`;
+    catAll.addEventListener("click", () => {
       this.activeCategory = null;
-      this.renderFilters();
+      this.showFavoritesOnly = false;
+      this.currentPage = 1;
+      this.renderSidebar();
       this.renderCards();
       this.updateStats();
-      this.updateBreadcrumb();
+      this.renderActiveFilters();
     });
-    catContainer.appendChild(catAllBtn);
+    catContainer.appendChild(catAll);
 
     [...this.categories].sort().forEach((cat) => {
+      const count = this.data.entries.filter((e) => e.category === cat).length;
       const btn = document.createElement("button");
       btn.className =
-        "filter-tag" + (this.activeCategory === cat ? " active" : "");
-      btn.textContent = cat;
+        "sidebar-tree-item" + (this.activeCategory === cat ? " active" : "");
+      btn.innerHTML = `<i data-lucide="folder" class="sidebar-tree-icon"></i><span>${this.escapeHtml(cat)}</span><span class="sidebar-item-count">${count}</span>`;
       btn.addEventListener("click", () => {
         this.activeCategory = this.activeCategory === cat ? null : cat;
+        this.showFavoritesOnly = false;
         this.currentPage = 1;
-        this.renderFilters();
+        this.renderSidebar();
         this.renderCards();
         this.updateStats();
-        this.updateBreadcrumb();
+        this.renderActiveFilters();
       });
       catContainer.appendChild(btn);
     });
 
     tagContainer.innerHTML = "";
-    const tagAllBtn = document.createElement("button");
-    tagAllBtn.className = "filter-tag" + (!this.activeTag ? " active" : "");
-    tagAllBtn.textContent = "全部";
-    tagAllBtn.addEventListener("click", () => {
-      this.activeTag = null;
-      this.renderFilters();
-      this.renderCards();
-      this.updateStats();
-      this.updateBreadcrumb();
-    });
-    tagContainer.appendChild(tagAllBtn);
-
     [...this.tags].sort().forEach((tag) => {
       const btn = document.createElement("button");
-      btn.className = "filter-tag" + (this.activeTag === tag ? " active" : "");
+      btn.className = "sidebar-tag" + (this.activeTag === tag ? " active" : "");
       btn.textContent = "#" + tag;
       btn.addEventListener("click", () => {
         this.activeTag = this.activeTag === tag ? null : tag;
+        this.showFavoritesOnly = false;
         this.currentPage = 1;
-        this.renderFilters();
+        this.renderSidebar();
         this.renderCards();
         this.updateStats();
-        this.updateBreadcrumb();
+        this.renderActiveFilters();
       });
       tagContainer.appendChild(btn);
     });
+
+    lucide.createIcons();
   },
 
   renderCards() {
@@ -408,17 +249,29 @@ const APP = {
     }
 
     empty.style.display = "none";
+    this.keyboardNavIndex = -1;
+
     grid.innerHTML = entries
-      .map((entry) => {
+      .map((entry, idx) => {
         const fileType = FileType.detect(entry.path);
-        const icon = FileType.getIcon(fileType);
+        const iconName = this.getLucideIcon(fileType);
+        const isFav = this.isFavorite(entry.id);
+        const batchCheck = this.batchMode
+          ? `<input type="checkbox" class="batch-checkbox" data-id="${entry.id}" onclick="event.stopPropagation();" onchange="APP.toggleBatchSelect(${entry.id}, this.checked)" ${this.selectedIds.has(entry.id) ? "checked" : ""}>`
+          : "";
         return `
-        <div class="entry-card" data-id="${entry.id}" tabindex="0" role="button" aria-label="${this.escapeHtml(entry.title)}">
-          <input type="checkbox" class="batch-checkbox" data-id="${entry.id}" onclick="event.stopPropagation();" onchange="APP.toggleBatchSelect(${entry.id}, this.checked)">
+        <div class="entry-card" data-id="${entry.id}" tabindex="0" role="button" aria-label="${this.escapeHtml(entry.title)}" style="animation-delay:${(idx % 12) * 50}ms">
+          ${batchCheck}
+          <div class="card-thumb">
+            <div class="card-thumb-bar"></div>
+            <i data-lucide="${iconName}" class="card-thumb-icon"></i>
+          </div>
           <div class="card-header">
-            <span class="card-icon">${icon}</span>
             <span class="card-title">${this.highlightText(entry.title)}</span>
-            <span class="card-category">${this.escapeHtml(entry.category)}</span>
+            <span class="card-category"><i data-lucide="folder"></i>${this.escapeHtml(entry.category)}</span>
+          </div>
+          <div class="card-meta">
+            <span>${entry.createdAt || ""}</span>
           </div>
           <p class="card-desc">${this.highlightText(entry.description || "暂无描述")}</p>
           <div class="card-footer">
@@ -426,31 +279,43 @@ const APP = {
               ${entry.tags.map((t) => `<span class="card-tag">#${this.highlightText(t)}</span>`).join("")}
             </div>
             <div class="card-actions">
-              <button class="fav-btn ${this.isFavorite(entry.id) ? "favorited" : ""}" data-id="${entry.id}" title="收藏" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">
-                ${this.isFavorite(entry.id) ? "★" : "☆"}
+              <button class="fav-btn ${isFav ? "favorited" : ""}" data-id="${entry.id}" title="收藏" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">
+                ${isFav ? "★" : "☆"}
               </button>
             </div>
-            <span class="card-date">${entry.createdAt || ""}</span>
           </div>
-        </div>
-      `;
+        </div>`;
       })
       .join("");
 
-    grid.querySelectorAll(".entry-card").forEach((card, index) => {
-      card.addEventListener("click", () =>
-        this.openDetail(parseInt(card.dataset.id)),
-      );
+    grid.querySelectorAll(".entry-card").forEach((card) => {
+      card.addEventListener("click", (e) => {
+        if (e.target.type === "checkbox") return;
+        this.openDrawer(parseInt(card.dataset.id));
+      });
       card.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          this.openDetail(parseInt(card.dataset.id));
+          this.openDrawer(parseInt(card.dataset.id));
         }
       });
     });
 
     this.renderPagination(paged);
     this.updateUrlState();
+    lucide.createIcons();
+  },
+
+  getLucideIcon(type) {
+    const map = {
+      markdown: "file-text",
+      image: "image",
+      pdf: "file-text",
+      video: "video",
+      audio: "music",
+      other: "file",
+    };
+    return map[type] || "file";
   },
 
   highlightText(text) {
@@ -459,13 +324,8 @@ const APP = {
   },
 
   renderPagination(paged) {
-    let pager = document.getElementById("pagination");
-    if (!pager) {
-      pager = document.createElement("div");
-      pager.id = "pagination";
-      pager.className = "pagination";
-      document.querySelector("main").appendChild(pager);
-    }
+    const pager = document.getElementById("pagination");
+    if (!pager) return;
 
     if (!paged || paged.totalPages <= 1) {
       pager.innerHTML = "";
@@ -473,11 +333,8 @@ const APP = {
     }
 
     let html = `<span class="page-info">第 ${paged.page}/${paged.totalPages} 页</span>`;
-
-    // Previous
     html += `<button class="page-btn ${paged.page === 1 ? "disabled" : ""}" data-page="${paged.page - 1}">‹</button>`;
 
-    // Page numbers
     const maxButtons = 5;
     let startPage = Math.max(1, paged.page - Math.floor(maxButtons / 2));
     let endPage = Math.min(paged.totalPages, startPage + maxButtons - 1);
@@ -487,24 +344,20 @@ const APP = {
 
     if (startPage > 1) {
       html += `<button class="page-btn" data-page="1">1</button>`;
-      if (startPage > 2) html += `<span class="page-ellipsis">...</span>`;
+      if (startPage > 2)
+        html += `<span style="padding:0 4px;color:var(--text-tertiary)">...</span>`;
     }
-
     for (let i = startPage; i <= endPage; i++) {
       html += `<button class="page-btn ${i === paged.page ? "active" : ""}" data-page="${i}">${i}</button>`;
     }
-
     if (endPage < paged.totalPages) {
       if (endPage < paged.totalPages - 1)
-        html += `<span class="page-ellipsis">...</span>`;
+        html += `<span style="padding:0 4px;color:var(--text-tertiary)">...</span>`;
       html += `<button class="page-btn" data-page="${paged.totalPages}">${paged.totalPages}</button>`;
     }
-
-    // Next
     html += `<button class="page-btn ${paged.page === paged.totalPages ? "disabled" : ""}" data-page="${paged.page + 1}">›</button>`;
 
     pager.innerHTML = html;
-
     pager.querySelectorAll(".page-btn:not(.disabled)").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.currentPage = parseInt(btn.dataset.page);
@@ -526,65 +379,368 @@ const APP = {
     this.updateStats();
   },
 
-  showSearchHistory(input) {
-    this.hideSearchHistory();
-    const history = SearchHistory.getHistory();
-    if (history.length === 0) return;
+  bindEvents() {
+    const searchInput = document.getElementById("searchInput");
+    if (!searchInput) return;
+    const clearBtn = document.getElementById("clearSearch");
+    const searchPanel = document.getElementById("searchPanel");
+    let debounceTimer;
 
-    this.searchHistoryDropdown = document.createElement("div");
-    this.searchHistoryDropdown.className = "search-history-dropdown";
-    this.searchHistoryDropdown.innerHTML = `
-      <div class="search-history-header">
-        <span>搜索历史</span>
-        <button class="btn-clear-history" onclick="SearchHistory.clear();APP.hideSearchHistory();">清空</button>
-      </div>
-      ${history
-        .slice(0, 5)
-        .map(
-          (h) => `<div class="search-history-item">${APP.escapeHtml(h)}</div>`,
-        )
-        .join("")}
-    `;
+    searchInput.addEventListener("focus", () => {
+      if (searchPanel && this.searchQuery.length > 0) {
+        searchPanel.style.display = "block";
+      }
+    });
 
-    input.parentNode.appendChild(this.searchHistoryDropdown);
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(debounceTimer);
+      const val = e.target.value.trim();
+      if (clearBtn) clearBtn.style.display = val ? "flex" : "none";
+      debounceTimer = setTimeout(() => {
+        this.searchQuery = val;
+        this.currentPage = 1;
+        SearchHistory.add(val);
+        this.renderCards();
+        this.updateStats();
+        this.renderActiveFilters();
+        this.renderSidebar();
+        if (searchPanel && val.length > 0) {
+          searchPanel.style.display = "block";
+          this.renderSearchSuggestions(val);
+        } else if (searchPanel) {
+          searchPanel.style.display = "none";
+        }
+      }, 200);
+    });
 
-    this.searchHistoryDropdown
-      .querySelectorAll(".search-history-item")
-      .forEach((item) => {
-        item.addEventListener("click", () => {
-          input.value = item.textContent;
-          this.searchQuery = item.textContent.trim();
-          this.currentPage = 1;
-          SearchHistory.add(this.searchQuery);
-          this.renderCards();
-          this.updateStats();
-          this.updateBreadcrumb();
-          this.hideSearchHistory();
-        });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        searchInput.blur();
+        if (searchPanel) searchPanel.style.display = "none";
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (
+        searchPanel &&
+        !e.target.closest(".topbar-search") &&
+        !e.target.closest(".search-panel")
+      ) {
+        searchPanel.style.display = "none";
+      }
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        clearBtn.style.display = "none";
+        this.searchQuery = "";
+        this.currentPage = 1;
+        this.renderCards();
+        this.updateStats();
+        this.renderActiveFilters();
+        this.renderSidebar();
+        if (searchPanel) searchPanel.style.display = "none";
       });
-  },
+    }
 
-  hideSearchHistory() {
-    if (this.searchHistoryDropdown) {
-      this.searchHistoryDropdown.remove();
-      this.searchHistoryDropdown = null;
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    const sidebar = document.getElementById("sidebar");
+    if (sidebarToggle && sidebar) {
+      sidebarToggle.addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+      });
+      document.addEventListener("click", (e) => {
+        if (
+          window.innerWidth <= 768 &&
+          sidebar.classList.contains("open") &&
+          !sidebar.contains(e.target) &&
+          !sidebarToggle.contains(e.target)
+        ) {
+          sidebar.classList.remove("open");
+        }
+      });
+    }
+
+    // Batch buttons
+    const batchDeleteBtn = document.getElementById("batchDeleteBtn");
+    if (batchDeleteBtn)
+      batchDeleteBtn.addEventListener("click", () => this.batchDelete());
+    const batchMoveBtn = document.getElementById("batchMoveBtn");
+    if (batchMoveBtn)
+      batchMoveBtn.addEventListener("click", () => this.batchMoveCategory());
+    const batchCancelBtn = document.getElementById("batchCancelBtn");
+    if (batchCancelBtn) {
+      batchCancelBtn.addEventListener("click", () => {
+        this.batchMode = false;
+        this.selectedIds.clear();
+        document.getElementById("batchToolbar").style.display = "none";
+        this.renderCards();
+      });
+    }
+
+    const addBtn = document.getElementById("addBtn");
+    if (addBtn) addBtn.addEventListener("click", () => this.openForm());
+
+    const adminToggleBtn = document.getElementById("adminToggleBtn");
+    if (adminToggleBtn) {
+      adminToggleBtn.addEventListener("click", () => {
+        const panel = document.getElementById("adminPanel");
+        if (panel) {
+          panel.style.display =
+            panel.style.display === "none" ? "block" : "none";
+          if (panel.style.display === "block") ADMIN.renderTable();
+        }
+      });
+    }
+    const closeAdminBtn = document.getElementById("closeAdmin");
+    if (closeAdminBtn) {
+      closeAdminBtn.addEventListener("click", () => {
+        document.getElementById("adminPanel").style.display = "none";
+      });
+    }
+
+    // Drawer events
+    const drawerOverlay = document.getElementById("drawerOverlay");
+    const drawerClose = document.getElementById("drawerClose");
+    if (drawerOverlay)
+      drawerOverlay.addEventListener("click", () => this.closeDrawer());
+    if (drawerClose)
+      drawerClose.addEventListener("click", () => this.closeDrawer());
+
+    const drawerFavBtn = document.getElementById("drawerFavBtn");
+    if (drawerFavBtn)
+      drawerFavBtn.addEventListener("click", () => this.drawerToggleFav());
+
+    const drawerEditBtn = document.getElementById("drawerEditBtn");
+    if (drawerEditBtn)
+      drawerEditBtn.addEventListener("click", () => this.drawerEdit());
+
+    const drawerDownloadBtn = document.getElementById("drawerDownloadBtn");
+    if (drawerDownloadBtn)
+      drawerDownloadBtn.addEventListener("click", () => this.drawerDownload());
+
+    const drawerDeleteBtn = document.getElementById("drawerDeleteBtn");
+    if (drawerDeleteBtn)
+      drawerDeleteBtn.addEventListener("click", () => this.drawerDelete());
+
+    // Form events
+    const formClose = document.getElementById("formClose");
+    if (formClose) formClose.addEventListener("click", () => this.closeForm());
+    const formOverlay = document.getElementById("formOverlay");
+    if (formOverlay)
+      formOverlay.addEventListener("click", () => this.closeForm());
+    const formCancel = document.getElementById("formCancel");
+    if (formCancel)
+      formCancel.addEventListener("click", () => this.closeForm());
+    const form = document.getElementById("entryForm");
+    if (form) form.addEventListener("submit", (e) => this.handleFormSubmit(e));
+
+    const sortBtn = document.getElementById("sortBtn");
+    if (sortBtn) sortBtn.addEventListener("click", () => this.toggleSort());
+
+    const themeToggle = document.getElementById("themeToggle");
+    if (themeToggle)
+      themeToggle.addEventListener("click", () => this.toggleTheme());
+
+    const exportBtn = document.getElementById("exportBtn");
+    if (exportBtn)
+      exportBtn.addEventListener("click", () => ADMIN.exportJSON());
+    const importBtn = document.getElementById("importBtn");
+    if (importBtn)
+      importBtn.addEventListener("click", () =>
+        document.getElementById("importFileInput").click(),
+      );
+    const importFileInput = document.getElementById("importFileInput");
+    if (importFileInput)
+      importFileInput.addEventListener("change", (e) => ADMIN.importJSON(e));
+
+    // Sidebar favorites
+    const sidebarFavBtn = document.getElementById("sidebarFavoritesBtn");
+    if (sidebarFavBtn) {
+      sidebarFavBtn.addEventListener("click", () => {
+        this.showFavoritesOnly = !this.showFavoritesOnly;
+        this.activeCategory = null;
+        this.activeTag = null;
+        this.currentPage = 1;
+        this.renderSidebar();
+        this.renderCards();
+        this.updateStats();
+        this.renderActiveFilters();
+        Toast.info(this.showFavoritesOnly ? "仅显示收藏" : "显示全部");
+      });
     }
   },
 
-  openDetail(id) {
+  renderSearchSuggestions(query) {
+    const container = document.getElementById("searchSuggestions");
+    if (!container) return;
+    if (!this.searchIndex) {
+      container.innerHTML = "";
+      return;
+    }
+    const results = this.searchIndex.search(query, {
+      prefix: true,
+      fuzzy: 0.2,
+    });
+    const top = results.slice(0, 5);
+    if (top.length === 0) {
+      container.innerHTML = `<div class="search-suggestion" style="color:var(--text-tertiary);font-size:13px;padding:12px 16px;">未找到相关结果</div>`;
+      return;
+    }
+    container.innerHTML = top
+      .map((r) => {
+        const entry = this.data.entries.find((e) => e.id === r.id);
+        if (!entry) return "";
+        return `<div class="search-suggestion" data-id="${entry.id}">
+        <i data-lucide="file-text" class="search-suggestion-icon"></i>
+        <span class="search-suggestion-text">${this.escapeHtml(entry.title)}</span>
+        <span class="search-suggestion-hint">${this.escapeHtml(entry.category)}</span>
+      </div>`;
+      })
+      .join("");
+    container.querySelectorAll(".search-suggestion").forEach((el) => {
+      el.addEventListener("click", () => {
+        document.getElementById("searchPanel").style.display = "none";
+        this.openDrawer(parseInt(el.dataset.id));
+      });
+    });
+    lucide.createIcons();
+  },
+
+  renderActiveFilters() {
+    const container = document.getElementById("activeFilters");
+    if (!container) return;
+    const parts = [];
+    if (this.searchQuery)
+      parts.push({ type: "search", label: `"${this.searchQuery}"` });
+    if (this.activeCategory)
+      parts.push({ type: "category", label: `分类: ${this.activeCategory}` });
+    if (this.activeTag)
+      parts.push({ type: "tag", label: `#${this.activeTag}` });
+    if (this.showFavoritesOnly) parts.push({ type: "fav", label: "★ 收藏" });
+
+    if (parts.length === 0) {
+      container.style.display = "none";
+      container.innerHTML = "";
+      return;
+    }
+
+    container.style.display = "flex";
+    container.innerHTML =
+      parts
+        .map(
+          (p) =>
+            `<span class="active-filter">
+        ${p.label}
+        <button class="active-filter-remove" data-type="${p.type}"><i data-lucide="x" style="width:12px;height:12px;"></i></button>
+      </span>`,
+        )
+        .join("") + `<button class="active-filter-clear">清除全部</button>`;
+
+    container.querySelectorAll(".active-filter-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.type;
+        if (type === "search") {
+          this.searchQuery = "";
+          document.getElementById("searchInput").value = "";
+          document.getElementById("clearSearch").style.display = "none";
+        }
+        if (type === "category") this.activeCategory = null;
+        if (type === "tag") this.activeTag = null;
+        if (type === "fav") this.showFavoritesOnly = false;
+        this.currentPage = 1;
+        this.renderSidebar();
+        this.renderCards();
+        this.updateStats();
+        this.renderActiveFilters();
+      });
+    });
+    container
+      .querySelector(".active-filter-clear")
+      .addEventListener("click", () => {
+        this.searchQuery = "";
+        this.activeCategory = null;
+        this.activeTag = null;
+        this.showFavoritesOnly = false;
+        document.getElementById("searchInput").value = "";
+        document.getElementById("clearSearch").style.display = "none";
+        this.currentPage = 1;
+        this.renderSidebar();
+        this.renderCards();
+        this.updateStats();
+        this.renderActiveFilters();
+      });
+    lucide.createIcons();
+  },
+
+  setupKeyboardShortcuts() {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const drawer = document.getElementById("drawer");
+        const formModal = document.getElementById("formModal");
+        const adminPanel = document.getElementById("adminPanel");
+        if (drawer.style.display !== "none") {
+          this.closeDrawer();
+        } else if (formModal.style.display !== "none") {
+          this.closeForm();
+        } else if (adminPanel.style.display !== "none") {
+          adminPanel.style.display = "none";
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        document.getElementById("searchInput").focus();
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const cards = document.querySelectorAll(".entry-card");
+        if (cards.length === 0) return;
+        e.preventDefault();
+        if (e.key === "ArrowDown") {
+          this.keyboardNavIndex = Math.min(
+            this.keyboardNavIndex + 1,
+            cards.length - 1,
+          );
+        } else {
+          this.keyboardNavIndex = Math.max(this.keyboardNavIndex - 1, 0);
+        }
+        cards.forEach((c, i) =>
+          c.classList.toggle("keyboard-focus", i === this.keyboardNavIndex),
+        );
+        if (this.keyboardNavIndex >= 0) {
+          cards[this.keyboardNavIndex].scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }
+      }
+      if (e.key === "Enter" && this.keyboardNavIndex >= 0) {
+        const cards = document.querySelectorAll(".entry-card");
+        if (cards[this.keyboardNavIndex]) cards[this.keyboardNavIndex].click();
+      }
+    });
+  },
+
+  openDrawer(id) {
     const entry = this.data.entries.find((e) => e.id === id);
     if (!entry) return;
 
-    document.getElementById("detailTitle").textContent = entry.title;
-    document.getElementById("detailCategory").textContent = entry.category;
-    document.getElementById("detailTags").innerHTML = entry.tags
+    document.getElementById("drawerTitle").textContent = entry.title;
+    document.getElementById("drawerCategory").innerHTML =
+      `<i data-lucide="folder" style="width:12px;height:12px;"></i> ${this.escapeHtml(entry.category)}`;
+    document.getElementById("drawerDate").textContent = entry.createdAt || "-";
+    document.getElementById("drawerTags").innerHTML = entry.tags
       .map((t) => `<span class="card-tag">#${this.escapeHtml(t)}</span>`)
       .join(" ");
-    document.getElementById("detailDate").textContent = entry.createdAt || "-";
-    document.getElementById("detailDesc").textContent =
+    document.getElementById("drawerDesc").textContent =
       entry.description || "暂无描述";
+    document.getElementById("drawerFavBtn").innerHTML = this.isFavorite(
+      entry.id,
+    )
+      ? '<i data-lucide="star" style="fill:var(--accent);color:var(--accent);"></i>'
+      : '<i data-lucide="star"></i>';
 
-    const preview = document.getElementById("detailPreview");
+    const preview = document.getElementById("drawerPreview");
     const fileType = FileType.detect(entry.path);
 
     if (entry.path && FileType.isPreviewable(fileType)) {
@@ -594,61 +750,146 @@ const APP = {
       if (fileType === "markdown") {
         preview.innerHTML =
           '<div class="loading-spinner"><div class="spinner"></div><p>加载中...</p></div>';
-        fetch(fullPath)
+        fetch(fullPath, { cache: "no-store" })
           .then((r) => {
             if (!r.ok) throw new Error("Not found");
             return r.text();
           })
           .then((text) => {
-            preview.innerHTML = marked.parse(text);
+            if (typeof marked !== "undefined") {
+              preview.innerHTML = marked.parse(text);
+            } else {
+              preview.innerHTML = `<pre style="white-space:pre-wrap;">${this.escapeHtml(text)}</pre>`;
+            }
           })
           .catch(() => {
             preview.innerHTML =
               '<p style="color:var(--text-secondary)">文件不存在或无法加载</p>';
           });
       } else if (fileType === "image") {
-        preview.innerHTML = `
-          <img src="${this.escapeHtml(fullPath)}" alt="${this.escapeHtml(entry.title)}" style="max-width:100%;border-radius:var(--radius);">
-        `;
+        preview.innerHTML = `<img src="${this.escapeHtml(fullPath)}" alt="${this.escapeHtml(entry.title)}" style="max-width:100%;border-radius:var(--radius);">`;
       } else if (fileType === "pdf") {
-        preview.innerHTML = `
-          <iframe src="${this.escapeHtml(fullPath)}" style="width:100%;height:600px;border:none;border-radius:var(--radius);">
-            <a href="${this.escapeHtml(fullPath)}" target="_blank">点击下载 PDF 文件</a>
-          </iframe>
-        `;
+        preview.innerHTML = `<iframe src="${this.escapeHtml(fullPath)}" style="width:100%;height:600px;border:none;border-radius:var(--radius);"><a href="${this.escapeHtml(fullPath)}" target="_blank">下载 PDF</a></iframe>`;
       } else if (fileType === "video") {
-        preview.innerHTML = `
-          <video controls style="max-width:100%;border-radius:var(--radius);">
-            <source src="${this.escapeHtml(fullPath)}" type="video/${entry.path.split(".").pop()}">
-            您的浏览器不支持视频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a>
-          </video>
-        `;
+        preview.innerHTML = `<video controls style="max-width:100%;border-radius:var(--radius);"><source src="${this.escapeHtml(fullPath)}" type="video/${entry.path.split(".").pop()}">不支持视频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a></video>`;
       } else if (fileType === "audio") {
-        preview.innerHTML = `
-          <audio controls style="width:100%;">
-            <source src="${this.escapeHtml(fullPath)}" type="audio/${entry.path.split(".").pop()}">
-            您的浏览器不支持音频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a>
-          </audio>
-        `;
+        preview.innerHTML = `<audio controls style="width:100%;"><source src="${this.escapeHtml(fullPath)}" type="audio/${entry.path.split(".").pop()}">不支持音频预览，<a href="${this.escapeHtml(fullPath)}">点击下载</a></audio>`;
       }
     } else {
       preview.innerHTML =
         '<p style="color:var(--text-secondary)">暂不支持预览此文件类型</p>';
     }
 
-    document.getElementById("detailModal").style.display = "flex";
-    this.keyboardNavIndex = -1;
+    const drawer = document.getElementById("drawer");
+    drawer.style.display = "flex";
+    document.body.style.overflow = "hidden";
+    this.currentDrawerId = id;
+    this.focusTrap(drawer);
+    lucide.createIcons();
   },
 
-  closeDetail() {
-    document.getElementById("detailModal").style.display = "none";
+  closeDrawer() {
+    const drawer = document.getElementById("drawer");
+    const panel = document.getElementById("drawerPanel");
+    if (panel) {
+      panel.style.animation =
+        "slideOutRight 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards";
+      panel.addEventListener(
+        "animationend",
+        () => {
+          drawer.style.display = "none";
+          panel.style.animation = "";
+        },
+        { once: true },
+      );
+    } else {
+      drawer.style.display = "none";
+    }
+    document.body.style.overflow = "";
+  },
+
+  focusTrap(container) {
+    const focusable = container.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first.focus();
+    container.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+  },
+
+  drawerToggleFav() {
+    if (this.currentDrawerId) {
+      this.toggleFavorite(this.currentDrawerId);
+      this.openDrawer(this.currentDrawerId);
+    }
+  },
+
+  drawerEdit() {
+    if (this.currentDrawerId) {
+      const entry = this.data.entries.find(
+        (e) => e.id === this.currentDrawerId,
+      );
+      if (entry) {
+        this.closeDrawer();
+        setTimeout(() => this.openForm(entry), 300);
+      }
+    }
+  },
+
+  drawerDownload() {
+    if (!this.currentDrawerId) return;
+    const entry = this.data.entries.find((e) => e.id === this.currentDrawerId);
+    if (!entry || !entry.path) {
+      Toast.warning("无文件可下载");
+      return;
+    }
+    const basePath = window.location.pathname.replace(/\/[^\/]*$/, "/");
+    const a = document.createElement("a");
+    a.href = basePath + entry.path;
+    a.download = entry.path.split("/").pop();
+    a.click();
+    Toast.success("下载已开始");
+  },
+
+  drawerDelete() {
+    if (!this.currentDrawerId) return;
+    const entry = this.data.entries.find((e) => e.id === this.currentDrawerId);
+    if (!entry) return;
+    ConfirmDialog.show(`确定要删除「${entry.title}」吗？`).then((confirmed) => {
+      if (!confirmed) return;
+      this.data.entries = this.data.entries.filter(
+        (e) => e.id !== this.currentDrawerId,
+      );
+      this.rebuildMetadata();
+      this.setupSearch();
+      this.saveData();
+      this.renderSidebar();
+      this.renderCards();
+      this.updateStats();
+      this.renderActiveFilters();
+      this.closeDrawer();
+      if (document.getElementById("adminPanel").style.display !== "none")
+        ADMIN.renderTable();
+      Toast.success("删除成功");
+    });
   },
 
   openForm(entry = null) {
     const modal = document.getElementById("formModal");
     const titleEl = document.getElementById("formTitleText");
-
     const select = document.getElementById("formCategory");
+
     select.innerHTML = '<option value="">请选择分类</option>';
     [...this.categories].sort().forEach((c) => {
       select.innerHTML += `<option value="${this.escapeHtml(c)}">${this.escapeHtml(c)}</option>`;
@@ -657,6 +898,7 @@ const APP = {
     if (entry) {
       titleEl.textContent = "编辑文件";
       document.getElementById("editId").value = entry.id;
+      document.getElementById("formTitle").value = entry.title;
       select.value = entry.category;
       document.getElementById("formTags").value = entry.tags.join(", ");
       document.getElementById("formPath").value = entry.path || "";
@@ -672,7 +914,6 @@ const APP = {
       document.getElementById("formDesc").value = "";
       document.getElementById("formCategoryNew").value = "";
     }
-
     this.populatePathSuggestions();
     modal.style.display = "flex";
   },
@@ -681,7 +922,7 @@ const APP = {
     document.getElementById("formModal").style.display = "none";
   },
 
-  async handleFormSubmit(e) {
+  handleFormSubmit(e) {
     e.preventDefault();
     const editId = document.getElementById("editId").value;
     const titleInput = document.getElementById("formTitle");
@@ -713,36 +954,38 @@ const APP = {
         entry.tags = tags;
         entry.path = path;
         entry.description = description;
-        if (oldCat !== category) this.categories.delete(oldCat);
+        if (oldCat !== category) {
+          this.categories.delete(oldCat);
+        }
+        this.categories.add(category);
+        tags.forEach((t) => this.tags.add(t));
       }
     } else {
       this.data.entries.push({
         id: this.nextId++,
         title: titleInput.value.trim(),
-        category: category,
-        tags: tags,
-        path: path,
-        description: description,
+        category,
+        tags,
+        path,
+        description,
         createdAt: new Date().toISOString().slice(0, 10),
         type: FileType.detect(path),
       });
+      this.categories.add(category);
+      tags.forEach((t) => this.tags.add(t));
     }
-
-    this.categories.add(category);
-    tags.forEach((t) => this.tags.add(t));
 
     this.setupSearch();
     this.saveData();
-    this.renderFilters();
+    this.renderSidebar();
     this.renderCards();
     this.updateStats();
-    this.updateBreadcrumb();
+    this.renderActiveFilters();
     this.closeForm();
     Toast.success(editId ? "更新成功" : "添加成功");
 
-    if (document.getElementById("adminPanel").style.display !== "none") {
-      ADMIN.renderTable();
-    }
+    const adminPanel = document.getElementById("adminPanel");
+    if (adminPanel && adminPanel.style.display !== "none") ADMIN.renderTable();
   },
 
   saveData() {
@@ -752,50 +995,11 @@ const APP = {
   updateStats() {
     const total = this.data.entries.length;
     const filtered = this.getFilteredEntries().length;
-    const paged = this.getPagedEntries();
-    document.querySelector("#totalCount strong").textContent = total;
-    document.querySelector("#filteredCount strong").textContent =
-      `${paged.total} / ${filtered}`;
-  },
-
-  updateBreadcrumb() {
-    let breadcrumb = document.getElementById("breadcrumb");
-    if (!breadcrumb) {
-      breadcrumb = document.createElement("div");
-      breadcrumb.id = "breadcrumb";
-      breadcrumb.className = "breadcrumb";
-      document
-        .querySelector(".search-section .container")
-        .appendChild(breadcrumb);
-    }
-
-    const parts = [];
-    if (this.searchQuery) parts.push(`搜索: "${this.searchQuery}"`);
-    if (this.activeCategory) parts.push(`分类: ${this.activeCategory}`);
-    if (this.activeTag) parts.push(`标签: #${this.activeTag}`);
-
-    if (parts.length === 0) {
-      breadcrumb.innerHTML = "";
-      return;
-    }
-
-    breadcrumb.innerHTML = `
-      <span class="breadcrumb-text">${parts.join(" &gt; ")}</span>
-      <button class="btn-clear-filters" onclick="APP.clearFilters()">清除筛选</button>
-    `;
-  },
-
-  clearFilters() {
-    this.activeCategory = null;
-    this.activeTag = null;
-    this.searchQuery = "";
-    this.currentPage = 1;
-    document.getElementById("searchInput").value = "";
-    document.getElementById("clearSearch").style.display = "none";
-    this.renderFilters();
-    this.renderCards();
-    this.updateStats();
-    this.updateBreadcrumb();
+    const sidebarStats = document.getElementById("sidebarStats");
+    const footerStats = document.getElementById("footerStats");
+    if (sidebarStats)
+      sidebarStats.textContent = `共 ${total} 条 · 显示 ${filtered} 条`;
+    if (footerStats) footerStats.textContent = `共 ${total} 条记录`;
   },
 
   escapeHtml(str) {
@@ -804,6 +1008,7 @@ const APP = {
     div.textContent = str;
     return div.innerHTML;
   },
+
   registerSW() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -857,9 +1062,7 @@ const APP = {
     try {
       const saved = localStorage.getItem("kb_favorites");
       if (saved) this.favorites = new Set(JSON.parse(saved));
-    } catch (e) {
-      /* ignore */
-    }
+    } catch (e) {}
   },
 
   toggleFavorite(id) {
@@ -870,32 +1073,11 @@ const APP = {
     }
     localStorage.setItem("kb_favorites", JSON.stringify([...this.favorites]));
     this.renderCards();
+    this.renderSidebar();
   },
 
   isFavorite(id) {
     return this.favorites.has(id);
-  },
-
-  toggleFavoritesFilter() {
-    this.showFavoritesOnly = !this.showFavoritesOnly;
-    const btn = document.getElementById("favoritesFilterBtn");
-    if (btn)
-      btn.style.display = this.favorites.size > 0 ? "inline-block" : "none";
-    this.currentPage = 1;
-    this.renderCards();
-    this.updateStats();
-  },
-
-  toggleBatchMode() {
-    this.batchMode = !this.batchMode;
-    document.getElementById("batchToolbar").style.display = this.batchMode
-      ? "flex"
-      : "none";
-    document
-      .getElementById("batchToggleBtn")
-      .classList.toggle("active", this.batchMode);
-    if (!this.batchMode) this.selectedIds.clear();
-    this.renderCards();
   },
 
   toggleBatchSelect(id, checked) {
@@ -904,6 +1086,23 @@ const APP = {
     } else {
       this.selectedIds.delete(id);
     }
+    const countEl = document.getElementById("batchCount");
+    if (countEl) countEl.textContent = `已选 ${this.selectedIds.size} 项`;
+  },
+
+  toggleSelectAll(selectAllChecked) {
+    const checkboxes = document.querySelectorAll(".entry-card .batch-checkbox");
+    checkboxes.forEach((cb) => {
+      cb.checked = selectAllChecked;
+      const id = parseInt(cb.dataset.id);
+      if (selectAllChecked) {
+        this.selectedIds.add(id);
+      } else {
+        this.selectedIds.delete(id);
+      }
+    });
+    const countEl = document.getElementById("batchCount");
+    if (countEl) countEl.textContent = `已选 ${this.selectedIds.size} 项`;
   },
 
   batchDelete() {
@@ -921,14 +1120,13 @@ const APP = {
       this.selectedIds.clear();
       this.batchMode = false;
       document.getElementById("batchToolbar").style.display = "none";
-      document.getElementById("batchToggleBtn").classList.remove("active");
       this.rebuildMetadata();
       this.setupSearch();
       this.saveData();
-      this.renderFilters();
+      this.renderSidebar();
       this.renderCards();
       this.updateStats();
-      this.updateBreadcrumb();
+      this.renderActiveFilters();
       if (document.getElementById("adminPanel").style.display !== "none")
         ADMIN.renderTable();
       Toast.success("删除成功");
@@ -948,14 +1146,13 @@ const APP = {
     this.selectedIds.clear();
     this.batchMode = false;
     document.getElementById("batchToolbar").style.display = "none";
-    document.getElementById("batchToggleBtn").classList.remove("active");
     this.rebuildMetadata();
     this.setupSearch();
     this.saveData();
-    this.renderFilters();
+    this.renderSidebar();
     this.renderCards();
     this.updateStats();
-    this.updateBreadcrumb();
+    this.renderActiveFilters();
     if (document.getElementById("adminPanel").style.display !== "none")
       ADMIN.renderTable();
     Toast.success("移动成功");
@@ -968,6 +1165,7 @@ const APP = {
       (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)
     ) {
       document.documentElement.setAttribute("data-theme", "dark");
+      this.updateThemeIcon(true);
     }
   },
 
@@ -979,6 +1177,15 @@ const APP = {
       isDark ? "light" : "dark",
     );
     localStorage.setItem("kb_theme", isDark ? "light" : "dark");
+    this.updateThemeIcon(!isDark);
+  },
+
+  updateThemeIcon(isDark) {
+    const icon = document.getElementById("themeIcon");
+    if (icon) {
+      icon.setAttribute("data-lucide", isDark ? "moon" : "sun");
+      lucide.createIcons();
+    }
   },
 
   populatePathSuggestions() {
@@ -991,5 +1198,4 @@ const APP = {
   },
 };
 
-// Start app
 document.addEventListener("DOMContentLoaded", () => APP.init());

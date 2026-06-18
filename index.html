@@ -1,187 +1,346 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>本地文件知识库</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <!-- MiniSearch for full-text search -->
-  <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
-  <!-- marked.js for Markdown rendering -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
-  <link rel="alternate" type="application/rss+xml" title="本地文件知识库 RSS" href="feed.xml">
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#4f46e5">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="知识库">
-  <link rel="apple-touch-icon" href="assets/images/icon-192.svg">
-</head>
-<body data-print-date="知识库">
-  <!-- Header -->
-  <header class="header">
-    <div class="container header-content">
-      <div class="logo">
-        <span class="logo-icon">&#128219;</span>
-        <h1>知识库</h1>
-      </div>
-      <nav class="header-nav">
-        <button class="theme-toggle" id="themeToggle" title="切换深色模式">🌙</button>
-        <button class="btn btn-primary" id="addBtn">＋ 添加文件</button>
-        <button class="btn btn-secondary" id="adminToggleBtn">管理面板</button>
-      </nav>
-    </div>
-  </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>知识库</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="知识库 RSS"
+      href="feed.xml"
+    />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="知识库" />
+    <link rel="apple-touch-icon" href="assets/images/icon-192.svg" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar" role="navigation" aria-label="主导航">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <i data-lucide="book-open" class="sidebar-logo-icon"></i>
+            <h2>知识库</h2>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <div class="sidebar-section">
+            <h3 class="sidebar-section-title">分类</h3>
+            <div id="sidebarCategories" class="sidebar-tree"></div>
+          </div>
+          <div class="sidebar-section">
+            <h3 class="sidebar-section-title">标签</h3>
+            <div id="sidebarTags" class="sidebar-tags"></div>
+          </div>
+          <div class="sidebar-section">
+            <button
+              class="sidebar-link"
+              id="sidebarFavoritesBtn"
+              style="display: none"
+            >
+              <i data-lucide="star" class="sidebar-link-icon"></i>
+              <span>收藏夹</span>
+              <span class="sidebar-badge" id="sidebarFavCount">0</span>
+            </button>
+          </div>
+        </nav>
+        <div class="sidebar-footer">
+          <span id="sidebarStats" class="sidebar-stats"></span>
+        </div>
+      </aside>
 
-  <!-- Search & Filter Bar -->
-  <section class="search-section">
-    <div class="container">
-      <div class="search-bar">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <path d="m21 21-4.35-4.35"></path>
-        </svg>
-        <input type="text" id="searchInput" placeholder="搜索知识库..." autocomplete="off">
-        <button class="clear-btn" id="clearSearch" style="display:none;">&#10005;</button>
+      <!-- Main Content -->
+      <div class="main-area">
+        <!-- Top Bar -->
+        <header class="topbar" role="banner">
+          <button
+            class="sidebar-toggle"
+            id="sidebarToggle"
+            aria-label="切换侧栏"
+          >
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="topbar-search">
+            <i data-lucide="search" class="topbar-search-icon"></i>
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="搜索知识库..."
+              autocomplete="off"
+              aria-label="搜索"
+            />
+            <span class="search-shortcut">⌘K</span>
+            <button
+              class="topbar-clear"
+              id="clearSearch"
+              style="display: none"
+              aria-label="清除搜索"
+            >
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn btn-primary btn-sm" id="addBtn">
+              <i data-lucide="plus"></i>
+              <span>添加</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="adminToggleBtn">
+              <i data-lucide="settings"></i>
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              id="sortBtn"
+              aria-label="切换排序"
+              title="切换排序"
+            >
+              <i data-lucide="arrow-up-down"></i>
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              id="themeToggle"
+              aria-label="切换主题"
+            >
+              <i data-lucide="moon" id="themeIcon"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- Search Suggestions -->
+        <div class="search-panel" id="searchPanel" style="display: none">
+          <div id="searchSuggestions" class="search-suggestions"></div>
+        </div>
+
+        <!-- Active Filters -->
+        <div
+          id="activeFilters"
+          class="active-filters"
+          style="display: none"
+        ></div>
+
+        <!-- Batch Toolbar -->
+        <div id="batchToolbar" class="batch-toolbar" style="display: none">
+          <input
+            type="checkbox"
+            id="selectAllCheckbox"
+            onchange="APP.toggleSelectAll(this.checked)"
+            title="全选/取消全选"
+          />
+          <span class="batch-count" id="batchCount">已选 0 项</span>
+          <button class="btn btn-danger btn-sm" id="batchDeleteBtn">
+            <i data-lucide="trash-2"></i> 删除选中
+          </button>
+          <button class="btn btn-secondary btn-sm" id="batchMoveBtn">
+            <i data-lucide="folder-input"></i> 批量移动
+          </button>
+          <button class="btn btn-ghost btn-sm" id="batchCancelBtn">取消</button>
+        </div>
+
+        <!-- Entry Grid -->
+        <main class="content" role="main">
+          <div id="entryGrid" class="entry-grid"></div>
+          <div id="emptyState" class="empty-state" style="display: none">
+            <i data-lucide="file-search" class="empty-icon"></i>
+            <p>没有找到匹配的文件</p>
+            <p class="empty-hint">试试其他关键词或清除筛选条件</p>
+          </div>
+        </main>
+
+        <!-- Pagination -->
+        <div id="pagination" class="pagination"></div>
+
+        <!-- Footer -->
+        <footer class="footer">
+          <div class="footer-inner">
+            <span id="footerStats"></span>
+            <span>&middot; 由 GitHub Pages 驱动</span>
+          </div>
+        </footer>
       </div>
-      <div class="filter-bar" id="filterBar">
-        <span class="filter-label">筛选：</span>
-        <div class="filter-tags" id="categoryFilters"></div>
-        <div class="filter-tags" id="tagFilters"></div>
-        <button class="filter-tag" id="favoritesFilterBtn" style="display:none;">★ 收藏</button>
-        <div class="sort-controls">
-          <button class="btn btn-secondary btn-sm" id="sortBtn" title="切换排序">⇅ 排序</button>
+
+      <!-- Detail Drawer -->
+      <div
+        id="drawer"
+        class="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="详情面板"
+      >
+        <div class="drawer-overlay" id="drawerOverlay"></div>
+        <div class="drawer-panel" id="drawerPanel">
+          <div class="drawer-header">
+            <div class="drawer-header-info">
+              <span class="drawer-category" id="drawerCategory"></span>
+              <span class="drawer-date" id="drawerDate"></span>
+            </div>
+            <button class="drawer-close" id="drawerClose" aria-label="关闭详情">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <div class="drawer-body" id="drawerBody">
+            <h2 class="drawer-title" id="drawerTitle"></h2>
+            <div class="drawer-tags" id="drawerTags"></div>
+            <div class="drawer-desc" id="drawerDesc"></div>
+            <div class="drawer-preview" id="drawerPreview"></div>
+          </div>
+          <div class="drawer-footer" id="drawerActions">
+            <button
+              class="btn btn-ghost btn-sm"
+              id="drawerFavBtn"
+              aria-label="收藏"
+            >
+              <i data-lucide="star"></i>
+            </button>
+            <button class="btn btn-secondary btn-sm" id="drawerEditBtn">
+              <i data-lucide="pencil"></i> 编辑
+            </button>
+            <button class="btn btn-primary btn-sm" id="drawerDownloadBtn">
+              <i data-lucide="download"></i> 下载
+            </button>
+            <button class="btn btn-danger btn-sm" id="drawerDeleteBtn">
+              <i data-lucide="trash-2"></i> 删除
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- Stats Bar -->
-  <section class="stats-section">
-    <div class="container">
-      <div class="stats">
-        <span id="totalCount">共 <strong>0</strong> 条</span>
-        <span id="filteredCount">显示 <strong>0</strong> 条</span>
+    <!-- Add/Edit Modal (keep existing) -->
+    <div
+      id="formModal"
+      class="modal"
+      style="display: none"
+      role="dialog"
+      aria-modal="true"
+      aria-label="编辑表单"
+    >
+      <div class="modal-overlay" id="formOverlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="formTitleText">添加文件</h2>
+          <button class="modal-close" id="formClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="entryForm">
+          <input type="hidden" id="editId" />
+          <div class="form-group">
+            <label for="formTitle">标题 *</label>
+            <input
+              type="text"
+              id="formTitle"
+              required
+              placeholder="请输入文件标题"
+            />
+          </div>
+          <div class="form-group">
+            <label for="formCategory">分类 *</label>
+            <select id="formCategory" required>
+              <option value="">请选择分类</option>
+            </select>
+            <input
+              type="text"
+              id="formCategoryNew"
+              class="new-category-input"
+              placeholder="或输入新分类名称"
+            />
+          </div>
+          <div class="form-group">
+            <label for="formTags">标签（用逗号分隔）</label>
+            <input
+              type="text"
+              id="formTags"
+              placeholder="例如：JavaScript, 教程"
+            />
+          </div>
+          <div class="form-group">
+            <label for="formPath">文件路径</label>
+            <input
+              type="text"
+              id="formPath"
+              placeholder="例如：docs/example.md"
+            />
+          </div>
+          <div class="form-group">
+            <label for="formDesc">描述</label>
+            <textarea
+              id="formDesc"
+              rows="3"
+              placeholder="简要描述此文件内容"
+            ></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">保存</button>
+            <button type="button" class="btn btn-secondary" id="formCancel">
+              取消
+            </button>
+          </div>
+        </form>
       </div>
     </div>
-  </section>
 
-  <!-- Main Content -->
-  <main class="container">
-    <div id="entryGrid" class="entry-grid"></div>
-    <div id="emptyState" class="empty-state" style="display:none;">
-      <p class="empty-icon">&#128269;</p>
-      <p>没有找到匹配的文件</p>
-      <p class="empty-hint">试试其他关键词或清除筛选条件</p>
-    </div>
-  </main>
-
-  <!-- Detail Modal -->
-  <div id="detailModal" class="modal" style="display:none;">
-    <div class="modal-overlay" id="detailOverlay"></div>
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h2 id="detailTitle"></h2>
-        <button class="modal-close" id="detailClose">&#10005;</button>
-      </div>
-      <div class="modal-body" id="detailBody">
-        <div class="detail-meta">
-          <span class="meta-item"><strong>分类：</strong><span id="detailCategory"></span></span>
-          <span class="meta-item"><strong>标签：</strong><span id="detailTags"></span></span>
-          <span class="meta-item"><strong>日期：</strong><span id="detailDate"></span></span>
+    <!-- Admin Panel (keep existing) -->
+    <div
+      id="adminPanel"
+      class="admin-panel"
+      style="display: none"
+      role="dialog"
+      aria-label="管理面板"
+    >
+      <div class="container">
+        <div class="admin-header">
+          <h2>管理面板</h2>
+          <div class="admin-actions">
+            <button class="btn btn-secondary" id="exportBtn">
+              <i data-lucide="download"></i> 导出 JSON
+            </button>
+            <button class="btn btn-secondary" id="importBtn">
+              <i data-lucide="upload"></i> 导入 JSON
+            </button>
+            <button class="btn btn-danger" id="closeAdmin">
+              <i data-lucide="x"></i> 关闭面板
+            </button>
+          </div>
         </div>
-        <div class="detail-desc" id="detailDesc"></div>
-        <div class="detail-preview" id="detailPreview"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add/Edit Modal -->
-  <div id="formModal" class="modal" style="display:none;">
-    <div class="modal-overlay" id="formOverlay"></div>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="formTitleText">添加文件</h2>
-        <button class="modal-close" id="formClose">&#10005;</button>
-      </div>
-      <form id="entryForm">
-        <input type="hidden" id="editId">
-        <div class="form-group">
-          <label for="formTitle">标题 *</label>
-          <input type="text" id="formTitle" required placeholder="请输入文件标题">
-        </div>
-        <div class="form-group">
-          <label for="formCategory">分类 *</label>
-          <select id="formCategory" required>
-            <option value="">请选择分类</option>
-          </select>
-          <input type="text" id="formCategoryNew" class="new-category-input" placeholder="或输入新分类名称">
-        </div>
-        <div class="form-group">
-          <label for="formTags">标签（用逗号分隔）</label>
-          <input type="text" id="formTags" placeholder="例如：JavaScript, 教程">
-        </div>
-        <div class="form-group">
-          <label for="formPath">文件路径</label>
-          <input type="text" id="formPath" placeholder="例如：docs/example.md">
-        </div>
-        <div class="form-group">
-          <label for="formDesc">描述</label>
-          <textarea id="formDesc" rows="3" placeholder="简要描述此文件内容"></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">保存</button>
-          <button type="button" class="btn btn-secondary" id="formCancel">取消</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Admin Panel -->
-  <div id="adminPanel" class="admin-panel" style="display:none;">
-    <div class="container">
-      <div class="admin-header">
-        <h2>管理面板</h2>
-        <div class="admin-actions">
-          <button class="btn btn-secondary" id="exportBtn">导出 JSON</button>
-          <button class="btn btn-secondary" id="importBtn">导入 JSON</button>
-          <button class="btn btn-danger" id="closeAdmin">关闭面板</button>
+        <div id="statsContainer" class="stats-container"></div>
+        <div class="admin-table-wrapper">
+          <table class="admin-table" id="adminTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>标题</th>
+                <th>分类</th>
+                <th>标签</th>
+                <th>路径</th>
+                <th>日期</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+          </table>
         </div>
       </div>
-      <div id="statsContainer" class="stats-container"></div>
-      <div class="admin-table-wrapper">
-        <table class="admin-table" id="adminTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>标题</th>
-              <th>分类</th>
-              <th>标签</th>
-              <th>路径</th>
-              <th>日期</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="adminTableBody"></tbody>
-        </table>
-      </div>
     </div>
-  </div>
 
-  <!-- Hidden file input for import -->
-  <input type="file" id="importFileInput" accept=".json" style="display:none;">
+    <input
+      type="file"
+      id="importFileInput"
+      accept=".json"
+      style="display: none"
+    />
+    <datalist id="pathSuggestions"></datalist>
 
-  <footer class="footer">
-    <div class="container">
-      <p>本地文件知识库 &copy; 2026 &middot; 由 GitHub Pages 驱动</p>
-    </div>
-  </footer>
-
-  <script src="js/utils.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/admin.js"></script>
-</body>
+    <script src="js/utils.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/admin.js"></script>
+  </body>
 </html>
