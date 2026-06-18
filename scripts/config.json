@@ -1,0 +1,11 @@
+{
+  "autoPush": {
+    "enabled": false,
+    "branch": "main",
+    "remote": "origin",
+    "debounceSeconds": 10,
+    "commitMessage": "docs: auto-update index from watcher",
+    "authorName": "Docs Watcher",
+    "authorEmail": "watcher@local"
+  }
+}

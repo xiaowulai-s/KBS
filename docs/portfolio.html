@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>> DEV_PORTFOLIO | Cyberpunk</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============================
+   CSS Variables
+   ============================ */
+:root {
+  --bg: #050510;
+  --bg-alt: #080A10;
+  --card: #101823;
+  --footer-bg: #05080C;
+  --neon-pink: #FF2E93;
+  --neon-cyan: #00F0FF;
+  --white: #FFFFFF;
+  --gray: #94A3B8;
+  --gray-dark: #64748B;
+  --gray-darker: #334455;
+  --border-subtle: rgba(51, 51, 68, 0.5);
+  --design-width: 1440;
+}
+
+/* ============================
+   Reset & Base
+   ============================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Roboto Mono', monospace;
+  background: #000000;
+  color: var(--gray);
+  overflow-x: hidden;
+  display: flex;
+  justify-content: center;
+}
+#wrapper {
+  width: 1440px;
+  transform-origin: top left;
+  margin: 0;
+}
+.page { width: 1440px; background: var(--bg); }
+
+/* ============================
+   Header
+   ============================ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 160px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
+  gap: 48px;
+}
+.logo {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--neon-cyan);
+  letter-spacing: 2px;
+}
+.nav { display: flex; gap: 36px; align-items: center; }
+.nav a {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--gray);
+  text-decoration: none;
+  letter-spacing: 1px;
+  transition: color 0.2s;
+}
+.nav a:hover, .nav a.active { color: var(--neon-cyan); }
+
+/* ============================
+   Hero
+   ============================ */
+.hero {
+  display: flex;
+  flex-direction: column;
+  padding: 200px 160px 160px;
+  gap: 48px;
+  min-height: 784px;
+}
+.glitch-container {
+  position: relative;
+  width: 100%;
+  height: 130px;
+}
+.glitch-layer {
+  position: absolute;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  font-size: 96px;
+  letter-spacing: -2px;
+  line-height: 1.22;
+  top: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.glitch-cyan {
+  left: -5px;
+  color: var(--neon-cyan);
+  opacity: 0.3;
+}
+.glitch-pink {
+  left: 5px;
+  color: var(--neon-pink);
+  opacity: 0.3;
+}
+.glitch-main {
+  left: 0;
+  color: var(--neon-pink);
+  text-shadow:
+    0 0 80px rgba(255, 46, 147, 0.12),
+    0 0 40px rgba(255, 46, 147, 0.25),
+    0 0 20px rgba(255, 46, 147, 0.50),
+    0 0 8px  rgba(255, 46, 147, 0.85);
+}
+/* Typewriter blink cursor */
+.glitch-main::after {
+  content: '█';
+  animation: blink 1s step-end infinite;
+  font-size: 80px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+/* Glitch jitter animation */
+@keyframes glitch-shift {
+  0%, 100% { transform: translate(0); }
+  5% { transform: translate(-3px, 2px); }
+  10% { transform: translate(3px, -1px); }
+  15% { transform: translate(0); }
+}
+.glitch-cyan { animation: glitch-shift 4s infinite; }
+.glitch-pink { animation: glitch-shift 4s infinite 0.15s; }
+
+.hero-subtitle {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--neon-cyan);
+  letter-spacing: 2px;
+}
+.hero-desc {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--gray);
+  line-height: 28px;
+  max-width: 520px;
+}
+.cta-row { display: flex; gap: 24px; align-items: center; }
+.cta-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neon-pink);
+  padding: 14px 32px;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.cta-primary:hover { box-shadow: 0 0 24px rgba(255, 46, 147, 0.5); }
+.cta-primary span {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bg);
+  letter-spacing: 1px;
+}
+.cta-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  padding: 14px 32px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.cta-secondary:hover { background: rgba(0, 240, 255, 0.15); box-shadow: 0 0 16px rgba(0, 240, 255, 0.3); }
+.cta-secondary span {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--neon-cyan);
+  letter-spacing: 1px;
+}
+
+/* ============================
+   Section Headers
+   ============================ */
+.section-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+.section-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  color: var(--white);
+}
+.section-title.h1 { font-size: 48px; }
+.section-title.h2 { font-size: 36px; }
+.section-badge {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--neon-pink);
+  letter-spacing: 2px;
+}
+.section-hint {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--neon-pink);
+  letter-spacing: 2px;
+}
+
+/* ============================
+   Projects Section
+   ============================ */
+.projects-section {
+  display: flex;
+  flex-direction: column;
+  padding: 120px 160px;
+  gap: 80px;
+}
+.project-row {
+  display: flex;
+  gap: 64px;
+}
+.project-image {
+  width: 560px;
+  height: 360px;
+  flex-shrink: 0;
+  background: var(--card);
+  border: 1px solid rgba(51, 51, 68, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.project-image .placeholder {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--gray-darker);
+  letter-spacing: 2px;
+}
+.project-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(255,46,147,0.05) 100%);
+}
+.project-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+  padding: 40px 0;
+}
+.project-num {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--neon-cyan);
+  letter-spacing: 2px;
+}
+.project-name {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  color: var(--white);
+  letter-spacing: -1px;
+}
+.project-cat {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--gray);
+}
+.project-desc {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--gray-dark);
+  line-height: 26px;
+  max-width: 400px;
+}
+.project-link {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--neon-pink);
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+.project-link:hover { color: var(--neon-cyan); }
+.project-row.reversed .project-image { order: 2; }
+.project-row.reversed .project-info { order: 1; }
+
+/* ============================
+   Project Grid Section
+   ============================ */
+.grid-section {
+  display: flex;
+  flex-direction: column;
+  padding: 120px 160px;
+  gap: 64px;
+  background: var(--bg-alt);
+}
+.card-row {
+  display: flex;
+  gap: 24px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background: var(--card);
+  border: 1px solid rgba(51, 51, 68, 0.2);
+  transition: border-color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+}
+.card-cyan  { border-color: rgba(0, 240, 255, 0.2); }
+.card-pink  { border-color: rgba(255, 46, 147, 0.2); }
+.card:hover.card-cyan {
+  border-color: rgba(0, 240, 255, 0.7);
+  box-shadow:
+    inset 0 0 4px rgba(0, 240, 255, 0.6),
+    inset 0 0 8px rgba(0, 240, 255, 0.3),
+    0 0 20px rgba(0, 240, 255, 0.2);
+}
+.card:hover.card-pink {
+  border-color: rgba(255, 46, 147, 0.7);
+  box-shadow:
+    inset 0 0 4px rgba(255, 46, 147, 0.6),
+    inset 0 0 8px rgba(255, 46, 147, 0.3),
+    0 0 20px rgba(255, 46, 147, 0.2);
+}
+.card-img {
+  height: 200px;
+  background: linear-gradient(to bottom, var(--card), #0A1018);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.card-img::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px, rgba(0,240,255,0.02) 2px, rgba(0,240,255,0.02) 4px
+  );
+}
+.card-img .placeholder {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--gray-darker);
+  letter-spacing: 2px;
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 12px;
+}
+.card-name {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--white);
+  letter-spacing: -0.5px;
+}
+.card-tags {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--neon-cyan);
+}
+.card-desc {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--gray-dark);
+  line-height: 1.3;
+}
+
+/* ============================
+   Social Proof
+   ============================ */
+.proof-section {
+  display: flex;
+  flex-direction: column;
+  padding: 120px 160px;
+  gap: 64px;
+}
+.stats-row { display: flex; gap: 48px; }
+.stat { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.stat-value {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  font-size: 48px;
+  letter-spacing: -1px;
+}
+.stat-value.pink { color: var(--neon-pink); }
+.stat-value.cyan { color: var(--neon-cyan); }
+.stat-label {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--gray);
+  letter-spacing: 1px;
+}
+.test-row { display: flex; gap: 32px; }
+.testimonial {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  background: var(--card);
+  padding: 32px;
+}
+.testimonial blockquote {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 15px;
+  color: #E0E0FF;
+  line-height: 24px;
+  font-style: normal;
+}
+.testimonial .author {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+.author.cyan { color: var(--neon-cyan); }
+.author.pink { color: var(--neon-pink); }
+
+/* ============================
+   Final CTA
+   ============================ */
+.cta-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 140px 160px;
+  gap: 32px;
+  background: var(--bg-alt);
+}
+.cta-section .cta-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  font-size: 48px;
+  color: var(--white);
+  letter-spacing: -1px;
+}
+.cta-section .cta-sub {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--gray);
+  text-align: center;
+}
+.cta-section .cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neon-pink);
+  padding: 16px 40px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: box-shadow 0.2s;
+}
+.cta-section .cta-btn:hover { box-shadow: 0 0 32px rgba(255, 46, 147, 0.6); }
+.cta-section .cta-btn span {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bg);
+  letter-spacing: 1px;
+}
+
+/* ============================
+   Footer
+   ============================ */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 48px 160px;
+  gap: 64px;
+  background: var(--footer-bg);
+  border-top: 1px solid rgba(0, 240, 255, 0.15);
+}
+.footer-brand { display: flex; flex-direction: column; gap: 8px; }
+.footer-brand .logo { font-size: 14px; }
+.footer-copy {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--gray-dark);
+}
+.footer-nav { display: flex; gap: 36px; }
+.footer-nav a {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--gray);
+  text-decoration: none;
+  letter-spacing: 1px;
+  transition: color 0.2s;
+}
+.footer-nav a:hover, .footer-nav a.highlight { color: var(--neon-cyan); }
+
+/* ============================
+   Responsive Scale
+   ============================ */
+@media (max-width: 1440px) {
+  #wrapper { transform: scale(calc(100vw / 1440)); }
+}
+</style>
+</head>
+<body>
+<div id="wrapper">
+<div class="page">
+
+<!-- ====== Header ====== -->
+<header class="header">
+  <div class="logo">> DEV_PORTFOLIO</div>
+  <nav class="nav">
+    <a href="#home" class="active">> HOME</a>
+    <a href="#work">> WORK</a>
+    <a href="#about">> ABOUT</a>
+    <a href="#contact">> CONTACT</a>
+  </nav>
+</header>
+
+<!-- ====== Hero ====== -->
+<section class="hero" id="home">
+  <div class="glitch-container">
+    <div class="glitch-layer glitch-cyan">> HELLO_WORLD</div>
+    <div class="glitch-layer glitch-pink">> HELLO_WORLD</div>
+    <div class="glitch-layer glitch-main">> HELLO_WORLD</div>
+  </div>
+  <div class="hero-subtitle">SYSTEM ONLINE // PORTFOLIO v2.0.7</div>
+  <div class="hero-desc">Full-stack developer &amp; creative technologist.<br>Building digital experiences at the intersection of code and design.</div>
+  <div class="cta-row">
+    <div class="cta-primary"><span>VIEW_WORK</span></div>
+    <div class="cta-secondary"><span>GET_IN_TOUCH</span></div>
+  </div>
+</section>
+
+<!-- ====== Projects ====== -->
+<section class="projects-section" id="work">
+  <div class="section-header">
+    <div class="section-title h1">> SELECTED_WORKS</div>
+    <div class="section-badge">[06]</div>
+  </div>
+  <!-- Project 1 -->
+  <div class="project-row">
+    <div class="project-image"><div class="placeholder">[ PROJECT_IMAGE_01 ]</div></div>
+    <div class="project-info">
+      <div class="project-num">01</div>
+      <div class="project-name">NEURAL_NETWORK_VISUALIZER</div>
+      <div class="project-cat">▸ React / WebGL / TensorFlow.js</div>
+      <div class="project-desc">Real-time neural network visualization with interactive node graphs. Built for educational purposes in machine learning workshops.</div>
+      <a href="#" class="project-link">> VIEW_PROJECT →</a>
+    </div>
+  </div>
+  <!-- Project 2 -->
+  <div class="project-row reversed">
+    <div class="project-image"><div class="placeholder">[ PROJECT_IMAGE_02 ]</div></div>
+    <div class="project-info">
+      <div class="project-num">02</div>
+      <div class="project-name">CYBERPUNK_UI_KIT</div>
+      <div class="project-cat">▸ Figma / Design System / Tokens</div>
+      <div class="project-desc">Complete design system with 200+ components, dark mode tokens, and automated documentation generation.</div>
+      <a href="#" class="project-link">> VIEW_PROJECT →</a>
+    </div>
+  </div>
+  <!-- Project 3 -->
+  <div class="project-row">
+    <div class="project-image"><div class="placeholder">[ PROJECT_IMAGE_03 ]</div></div>
+    <div class="project-info">
+      <div class="project-num">03</div>
+      <div class="project-name">BLOCKCHAIN_EXPLORER</div>
+      <div class="project-cat">▸ Vue.js / Web3 / Ethers.js</div>
+      <div class="project-desc">Real-time blockchain explorer with transaction visualization and smart contract interaction dashboard.</div>
+      <a href="#" class="project-link">> VIEW_PROJECT →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Project Grid ====== -->
+<section class="grid-section">
+  <div class="section-header">
+    <div class="section-title h2">> PROJECT_GRID [06]</div>
+    <div class="section-hint">HOVER FOR NEON GLOW</div>
+  </div>
+  <!-- Row 1 -->
+  <div class="card-row">
+    <div class="card card-cyan">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">INDUSTRIAL_OCR</div>
+        <div class="card-tags">OpenCV · Tesseract · NetworkX</div>
+        <div class="card-desc">Switchgear terminal OCR system with template matching.</div>
+      </div>
+    </div>
+    <div class="card card-pink">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">UHF_PD_PLATFORM</div>
+        <div class="card-tags">PySide6 · OpenGL · PRPD 3D</div>
+        <div class="card-desc">UHF partial discharge analysis with 3D visualization.</div>
+      </div>
+    </div>
+    <div class="card card-cyan">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">WORKBUDDY_AE</div>
+        <div class="card-tags">AE Sensor · DSP · AI Analysis</div>
+        <div class="card-desc">Acoustic emission subsystem for industrial monitoring.</div>
+      </div>
+    </div>
+  </div>
+  <!-- Row 2 -->
+  <div class="card-row">
+    <div class="card card-pink">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">CYBER_UI_KIT</div>
+        <div class="card-tags">Figma · Design System · Tokens</div>
+        <div class="card-desc">200+ components design system for cyberpunk interfaces.</div>
+      </div>
+    </div>
+    <div class="card card-cyan">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">PRPD_ANALYZER</div>
+        <div class="card-tags">Python · Qt · 3D Scatter</div>
+        <div class="card-desc">PRPD/PRPS 3D scatter plot for partial discharge analysis.</div>
+      </div>
+    </div>
+    <div class="card card-pink">
+      <div class="card-img"><div class="placeholder">[ PREVIEW ]</div></div>
+      <div class="card-body">
+        <div class="card-name">DEVOPS_DASHBOARD</div>
+        <div class="card-tags">Docker · Grafana · Prometheus</div>
+        <div class="card-desc">Real-time monitoring dashboard for CI/CD pipelines.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Social Proof ====== -->
+<section class="proof-section" id="about">
+  <div class="section-header">
+    <div class="section-title h2">> SYSTEM_LOG [SOCIAL]</div>
+  </div>
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-value pink">12+</div>
+      <div class="stat-label">> YEARS_OF_CODE</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value cyan">30+</div>
+      <div class="stat-label">> PROJECTS_SHIPPED</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value pink">98%</div>
+      <div class="stat-label">> CLIENT_SATISFACTION</div>
+    </div>
+  </div>
+  <div class="test-row">
+    <div class="testimonial">
+      <blockquote>One of the most technically rigorous developers I have worked with. The OCR pipeline they built for us cut manual verification time by 60%.</blockquote>
+      <div class="author cyan">— LIU WEI, CTO @ POWERTECH</div>
+    </div>
+    <div class="testimonial">
+      <blockquote>Exceptional work on the UHF PD platform. The 3D PRPD visualization you built is now the standard we show to clients during demos.</blockquote>
+      <div class="author pink">— ZHANG MIN, LEAD ENGINEER @ GISLAB</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Final CTA ====== -->
+<section class="cta-section" id="contact">
+  <div class="cta-title">> READY_TO_BUILD?</div>
+  <div class="cta-sub">Open for freelance &amp; collaboration opportunities.<br>Let's create something extraordinary together.</div>
+  <div class="cta-btn"><span>INITIATE_CONTACT</span></div>
+</section>
+
+<!-- ====== Footer ====== -->
+<footer class="footer">
+  <div class="footer-brand">
+    <div class="logo">> DEV_PORTFOLIO</div>
+    <div class="footer-copy">SYSTEM BUILD 2077 // ALL RIGHTS RESERVED</div>
+  </div>
+  <nav class="footer-nav">
+    <a href="#">> GITHUB</a>
+    <a href="#">> LINKEDIN</a>
+    <a href="#">> TWITTER</a>
+    <a href="#" class="highlight">> EMAIL</a>
+  </nav>
+</footer>
+
+</div><!-- /page -->
+</div><!-- /wrapper -->
+
+<script>
+/* Responsive Scale */
+function scalePage() {
+  const wrapper = document.getElementById('wrapper');
+  const vw = window.innerWidth;
+  const scale = Math.min(vw / 1440, 1);
+  wrapper.style.transform = 'scale(' + scale + ')';
+  wrapper.style.width = (1440 * scale) + 'px';
+  document.body.style.height = (wrapper.scrollHeight * scale) + 'px';
+}
+window.addEventListener('resize', scalePage);
+window.addEventListener('load', scalePage);
+scalePage();
+</script>
+</body>
+</html>

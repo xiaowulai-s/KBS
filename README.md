@@ -67,7 +67,9 @@
 ├── docs/                   # 文档存放区
 ├── scripts/
 │   ├── generate_index.py   # 自动扫描 docs/ 生成索引
-│   └── watch_docs.py       # 监听文件变化自动更新索引
+│   ├── watch_docs.py       # 监听文件变化自动更新索引并可选推送 GitHub
+│   ├── git_pusher.py       # Git 自动提交与推送模块
+│   └── config.json         # 监控脚本配置（自动推送开关等）
 ├── assets/
 │   └── images/             # PWA 图标资源
 ├── .github/
@@ -94,6 +96,12 @@
 python scripts/generate_index.py
 
 # 监听 docs/ 目录变化（自动重新生成索引）
+python scripts/watch_docs.py
+
+# 监听 docs/ 目录变化并自动推送到 GitHub Pages
+# 1. 编辑 scripts/config.json，将 autoPush.enabled 设为 true
+# 2. 确保已配置 Git 推送凭证（SSH Key 或 Git Credential Manager）
+# 3. 运行监控脚本
 python scripts/watch_docs.py
 ```
 
