@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "本地文件知识库",
   "siteDescription": "通过 GitHub Pages 分享的本地文件知识库",
-  "generatedAt": "2026-06-18T02:42:35Z",
+  "generatedAt": "2026-06-18T02:54:40Z",
   "entries": [
     {
       "id": 1,
@@ -17,6 +17,19 @@
       "description": "API 接口设计规范",
       "createdAt": "2026-06-18",
       "type": "markdown"
+    },
+    {
+      "id": 2,
+      "title": "C14689 可编程逻辑器件(CPLD FPGA) EPM570T144C5N 规格书 WJ52793",
+      "category": "技术文档",
+      "tags": [
+        "PDF",
+        "技术文档"
+      ],
+      "path": "docs/C14689_可编程逻辑器件(CPLD-FPGA)_EPM570T144C5N_规格书_WJ52793.PDF",
+      "description": "C14689 可编程逻辑器件(CPLD FPGA) EPM570T144C5N 规格书 WJ52793 相关文件",
+      "createdAt": "2026-06-10",
+      "type": "pdf"
     },
     {
       "id": 2,
@@ -60,6 +73,18 @@
       "type": "markdown"
     },
     {
+      "id": 6,
+      "title": "Mcgs昆仑通态脚本函数",
+      "category": "未分类",
+      "tags": [
+        "Docx"
+      ],
+      "path": "docs/MCGS昆仑通态脚本函数.docx",
+      "description": "Mcgs昆仑通态脚本函数 相关文件",
+      "createdAt": "2026-03-04",
+      "type": "other"
+    },
+    {
       "id": 5,
       "title": "团队会议记录 - 6月",
       "category": "团队协作",
@@ -84,6 +109,19 @@
       ],
       "path": "docs/requirements.md",
       "description": "项目需求文档 v2.0",
+      "createdAt": "2026-06-18",
+      "type": "markdown"
+    },
+    {
+      "id": 9,
+      "title": "测试文件",
+      "category": "未分类",
+      "tags": [
+        "Md",
+        "文档"
+      ],
+      "path": "docs/test-watch.md",
+      "description": "测试文件",
       "createdAt": "2026-06-18",
       "type": "markdown"
     }

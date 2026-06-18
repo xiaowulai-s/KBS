@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -9,8 +9,16 @@
   <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
   <!-- marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
+  <link rel="alternate" type="application/rss+xml" title="本地文件知识库 RSS" href="feed.xml">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="知识库">
+  <link rel="apple-touch-icon" href="assets/images/icon-192.png">
 </head>
-<body>
+<body data-print-date="知识库">
   <!-- Header -->
   <header class="header">
     <div class="container header-content">
@@ -19,6 +27,7 @@
         <h1>知识库</h1>
       </div>
       <nav class="header-nav">
+        <button class="theme-toggle" id="themeToggle" title="切换深色模式">🌙</button>
         <button class="btn btn-primary" id="addBtn">＋ 添加文件</button>
         <button class="btn btn-secondary" id="adminToggleBtn">管理面板</button>
       </nav>
@@ -40,6 +49,7 @@
         <span class="filter-label">筛选：</span>
         <div class="filter-tags" id="categoryFilters"></div>
         <div class="filter-tags" id="tagFilters"></div>
+        <button class="filter-tag" id="favoritesFilterBtn" style="display:none;">★ 收藏</button>
         <div class="sort-controls">
           <button class="btn btn-secondary btn-sm" id="sortBtn" title="切换排序">⇅ 排序</button>
         </div>
@@ -139,6 +149,7 @@
           <button class="btn btn-danger" id="closeAdmin">关闭面板</button>
         </div>
       </div>
+      <div id="statsContainer" class="stats-container"></div>
       <div class="admin-table-wrapper">
         <table class="admin-table" id="adminTable">
           <thead>

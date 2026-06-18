@@ -1,4 +1,4 @@
-// ====================================
+﻿// ====================================
 // admin.js - Admin Panel Logic
 // ====================================
 
@@ -86,12 +86,15 @@ const ADMIN = {
         }
 
         const existingIds = new Set(APP.data.entries.map(en => en.id));
-        let added = 0, skipped = 0;
+        let added = 0, skipped = 0, updated = 0;
         imported.entries.forEach(entry => {
-          if (!existingIds.has(entry.id)) {
+          const existing = APP.data.entries.find(en => en.id === entry.id);
+          if (!existing) {
             APP.data.entries.push(entry);
             added++;
           } else {
+            Object.keys(entry).forEach(key => { if (entry[key] !== undefined) existing[key] = entry[key]; });
+            updated++;
             skipped++;
           }
         });
@@ -114,5 +117,47 @@ const ADMIN = {
     };
     reader.readAsText(file);
     event.target.value = '';
+  },
+};
+  // Clean empty categories after deletions
+  cleanStaleCategories() {
+    APP.categories.clear();
+    APP.tags.clear();
+    APP.data.entries.forEach(entry => {
+      if (entry.category) APP.categories.add(entry.category);
+      if (entry.tags && Array.isArray(entry.tags)) {
+        entry.tags.forEach(tag => { if (tag) APP.tags.add(tag); });
+      }
+    });
+  },
+
+  // Render statistics
+  renderStats() {
+    const container = document.getElementById('statsContainer');
+    if (!container) return;
+    var cc = {};
+    APP.data.entries.forEach(function(e) { cc[e.category || '未分类'] = (cc[e.category || '未分类'] || 0) + 1; });
+    var tf = APP.data.entries.length;
+    var tc = Object.keys(cc).length;
+    var at = new Set();
+    APP.data.entries.forEach(function(e) { if (e.tags) e.tags.forEach(function(t) { at.add(t); }); });
+    var tt = at.size;
+    var se = APP.data.entries.slice().sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'');});
+    var le = se.length > 0 ? se[0] : null;
+    var bh = '';
+    Object.keys(cc).forEach(function(cat){
+      var pct = tf > 0 ? Math.round((cc[cat]/tf)*100) : 0;
+      bh += '<div class="chart-bar"><span class="chart-label">'+cat+'</span><div class="chart-track"><div class="chart-fill" style="width:'+pct+'%"></div></div><span class="chart-value">'+pct+'%</span></div>';
+    });
+    container.innerHTML =
+      '<div class="stats-grid">' +
+        '<div class="stat-card"><div class="stat-number">'+tf+'</div><div class="stat-label">总文件数</div></div>' +
+        '<div class="stat-card"><div class="stat-number">'+tc+'</div><div class="stat-label">分类数</div></div>' +
+        '<div class="stat-card"><div class="stat-number">'+tt+'</div><div class="stat-label">标签数</div></div>' +
+        '<div class="stat-card"><div class="stat-number">'+(le?le.createdAt:'-')+'</div><div class="stat-label">最新添加</div></div>' +
+      '</div>' +
+      '<div class="category-chart">' +
+        '<h3 style="font-size:14px;margin-bottom:12px;color:var(--text-secondary)">分类分布</h3>' +
+        bh + '</div>';
   },
 };
