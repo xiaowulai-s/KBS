@@ -82,7 +82,6 @@ const APP = {
         boost: { title: 3, description: 2, tags: 1.5, category: 1 },
       },
     });
-    this.searchIndex.cancelAll();
     this.data.entries.forEach(entry => {
       this.searchIndex.add({
         id: entry.id,
