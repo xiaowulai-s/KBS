@@ -60,13 +60,14 @@ const ADMIN = {
     const catBars = Object.entries(catCounts)
       .sort((a, b) => b[1] - a[1])
       .map(([cat, count]) => {
-        const pct = (count / maxCatCount * 100).toFixed(0);
+        const pct = ((count / maxCatCount) * 100).toFixed(0);
         return `<div class="chart-bar">
           <span class="chart-label">${APP.escapeHtml(cat)}</span>
           <div class="chart-track"><div class="chart-fill" style="width:${pct}%"></div></div>
           <span class="chart-value">${count}</span>
         </div>`;
-      }).join("");
+      })
+      .join("");
 
     const totalEntries = entries.length;
     const totalCategories = Object.keys(catCounts).length;
@@ -129,9 +130,9 @@ const ADMIN = {
     APP.saveData();
     APP.rebuildMetadata();
     APP.setupSearch();
-    APP.renderSidebar();
-    APP.renderCards();
-    APP.updateStats();
+    APP.renderList();
+    APP.renderFilterChips();
+    APP.updateStatus();
     this.renderTable();
     Toast.success("删除成功");
   },
@@ -182,7 +183,8 @@ const ADMIN = {
                 tags: entry.tags || [],
                 path: entry.path || "",
                 description: entry.description || "",
-                createdAt: entry.createdAt || new Date().toISOString().slice(0, 10),
+                createdAt:
+                  entry.createdAt || new Date().toISOString().slice(0, 10),
                 type: entry.type || FileType.detect(entry.path || ""),
               });
               APP.data.entries.push(created);
@@ -201,9 +203,9 @@ const ADMIN = {
         APP.nextId = Math.max(...APP.data.entries.map((e) => e.id), 0) + 1;
         APP.setupSearch();
         APP.saveData();
-        APP.renderSidebar();
-        APP.renderCards();
-        APP.updateStats();
+        APP.renderList();
+        APP.renderFilterChips();
+        APP.updateStatus();
         this.renderTable();
 
         let msg = `成功导入 ${added} 条记录`;

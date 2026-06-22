@@ -3,234 +3,182 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>知识库</title>
+    <title>KBS — 知识库</title>
     <link rel="stylesheet" href="css/style.css" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <link
       rel="alternate"
       type="application/rss+xml"
-      title="知识库 RSS"
+      title="KBS"
       href="feed.xml"
     />
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#6366f1" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="知识库" />
+    <meta name="apple-mobile-web-app-title" content="KBS" />
     <link rel="apple-touch-icon" href="assets/images/icon-192.svg" />
   </head>
   <body>
-    <div class="app-layout">
-      <!-- Sidebar -->
-      <aside class="sidebar" id="sidebar" role="navigation" aria-label="主导航">
-        <div class="sidebar-header">
-          <div class="sidebar-logo">
-            <i data-lucide="book-open" class="sidebar-logo-icon"></i>
-            <h2>知识库</h2>
-          </div>
+    <div class="app">
+      <!-- Status Bar -->
+      <header class="status-bar" role="banner">
+        <div class="status-left">
+          <span class="status-brand">KBS</span>
+          <span class="status-sep"></span>
+          <span class="status-text" id="statusText">共 0 条</span>
         </div>
-        <nav class="sidebar-nav">
-          <div class="sidebar-section">
-            <h3 class="sidebar-section-title">分类</h3>
-            <div id="sidebarCategories" class="sidebar-tree"></div>
-          </div>
-          <div class="sidebar-section">
-            <h3 class="sidebar-section-title">标签</h3>
-            <div id="sidebarTags" class="sidebar-tags"></div>
-          </div>
-          <div class="sidebar-section">
-            <button
-              class="sidebar-link"
-              id="sidebarFavoritesBtn"
-              style="display: none"
-            >
-              <i data-lucide="star" class="sidebar-link-icon"></i>
-              <span>收藏夹</span>
-              <span class="sidebar-badge" id="sidebarFavCount">0</span>
+        <div class="status-right">
+          <button class="status-btn" id="adminToggleBtn" aria-label="管理面板">
+            <i data-lucide="settings"></i>
+          </button>
+          <button class="status-btn" id="themeToggle" aria-label="切换主题">
+            <i data-lucide="moon" id="themeIcon"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Entry List -->
+      <main class="entry-list" id="entryList" role="list" aria-label="条目列表">
+        <!-- rendered by JS -->
+      </main>
+
+      <!-- Bottom Bar -->
+      <footer class="bottom-bar" id="bottomBar">
+        <div class="bottom-main">
+          <div class="bottom-filters" id="filterChips"></div>
+          <div class="bottom-actions">
+            <button class="bottom-btn" id="filterToggleBtn">
+              <i data-lucide="filter"></i>
+              <span id="filterLabel">全部</span>
+            </button>
+            <button class="bottom-btn" id="sortBtn">
+              <i data-lucide="arrow-up-down"></i>
+              <span id="sortLabel">最新</span>
+            </button>
+            <button class="bottom-btn" id="densityBtn" title="切换密度 ⌘1-3">
+              <i data-lucide="list"></i>
+            </button>
+            <button class="bottom-btn bottom-btn-primary" id="addBtn">
+              <i data-lucide="plus"></i>
             </button>
           </div>
-        </nav>
-        <div class="sidebar-footer">
-          <span id="sidebarStats" class="sidebar-stats"></span>
         </div>
-      </aside>
+        <div class="bottom-panel" id="filterPanel" style="display: none">
+          <div class="filter-group">
+            <div class="filter-group-label">分类</div>
+            <div class="filter-options" id="filterCategories"></div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">标签</div>
+            <div class="filter-tags" id="filterTags"></div>
+          </div>
+        </div>
+        <div class="bottom-stats" id="bottomStats" style="display: none"></div>
+      </footer>
 
-      <!-- Main Content -->
-      <div class="main-area">
-        <!-- Top Bar -->
-        <header class="topbar" role="banner">
-          <button
-            class="sidebar-toggle"
-            id="sidebarToggle"
-            aria-label="切换侧栏"
-          >
-            <i data-lucide="menu"></i>
-          </button>
-          <div class="topbar-search">
-            <i data-lucide="search" class="topbar-search-icon"></i>
+      <!-- Command Palette -->
+      <div
+        id="commandPalette"
+        class="command-palette"
+        style="display: none"
+        role="dialog"
+        aria-label="命令面板"
+      >
+        <div class="cmd-overlay" id="cmdOverlay"></div>
+        <div class="cmd-panel">
+          <div class="cmd-input-wrap">
+            <span class="cmd-prefix" id="cmdPrefix"></span>
             <input
               type="text"
-              id="searchInput"
+              id="cmdInput"
               placeholder="搜索知识库..."
               autocomplete="off"
-              aria-label="搜索"
+              spellcheck="false"
             />
-            <span class="search-shortcut">⌘K</span>
-            <button
-              class="topbar-clear"
-              id="clearSearch"
-              style="display: none"
-              aria-label="清除搜索"
-            >
-              <i data-lucide="x"></i>
-            </button>
+            <span class="cmd-hint" id="cmdHint"></span>
           </div>
-          <div class="topbar-actions">
-            <button class="btn btn-primary btn-sm" id="addBtn">
-              <i data-lucide="plus"></i>
-              <span>添加</span>
-            </button>
-            <button class="btn btn-ghost btn-sm" id="adminToggleBtn">
-              <i data-lucide="settings"></i>
-            </button>
-            <button
-              class="btn btn-ghost btn-sm"
-              id="sortBtn"
-              aria-label="切换排序"
-              title="切换排序"
+          <div class="cmd-results" id="cmdResults"></div>
+          <div class="cmd-footer">
+            <span>↑↓ 导航</span><span>Enter 选择</span><span>Esc 关闭</span>
+            <span class="cmd-hint-text" id="cmdModeHint"
+              >输入 &gt; 执行命令 · @ 按标签 · # 按分类</span
             >
-              <i data-lucide="arrow-up-down"></i>
-            </button>
-            <button
-              class="btn btn-ghost btn-sm"
-              id="themeToggle"
-              aria-label="切换主题"
-            >
-              <i data-lucide="moon" id="themeIcon"></i>
-            </button>
           </div>
-        </header>
-
-        <!-- Search Suggestions -->
-        <div class="search-panel" id="searchPanel" style="display: none">
-          <div id="searchSuggestions" class="search-suggestions"></div>
         </div>
-
-        <!-- Active Filters -->
-        <div
-          id="activeFilters"
-          class="active-filters"
-          style="display: none"
-        ></div>
-
-        <!-- Batch Toolbar -->
-        <div id="batchToolbar" class="batch-toolbar" style="display: none">
-          <input
-            type="checkbox"
-            id="selectAllCheckbox"
-            onchange="APP.toggleSelectAll(this.checked)"
-            title="全选/取消全选"
-          />
-          <span class="batch-count" id="batchCount">已选 0 项</span>
-          <button class="btn btn-danger btn-sm" id="batchDeleteBtn">
-            <i data-lucide="trash-2"></i> 删除选中
-          </button>
-          <button class="btn btn-secondary btn-sm" id="batchMoveBtn">
-            <i data-lucide="folder-input"></i> 批量移动
-          </button>
-          <button class="btn btn-ghost btn-sm" id="batchCancelBtn">取消</button>
-        </div>
-
-        <!-- Entry Grid -->
-        <main class="content" role="main">
-          <div id="entryGrid" class="entry-grid"></div>
-          <div id="emptyState" class="empty-state" style="display: none">
-            <i data-lucide="file-search" class="empty-icon"></i>
-            <p>没有找到匹配的文件</p>
-            <p class="empty-hint">试试其他关键词或清除筛选条件</p>
-          </div>
-        </main>
-
-        <!-- Pagination -->
-        <div id="pagination" class="pagination"></div>
-
-        <!-- Footer -->
-        <footer class="footer">
-          <div class="footer-inner">
-            <span id="footerStats"></span>
-            <span>&middot; 由 GitHub Pages 驱动</span>
-          </div>
-        </footer>
       </div>
 
-      <!-- Detail Drawer v3 -->
+      <!-- Floating Toolbox -->
+      <div id="toolbox" class="toolbox" style="display: none" role="menu"></div>
+
+      <!-- Fullscreen Reader -->
       <div
-        id="drawer"
-        class="drawer"
+        id="reader"
+        class="reader"
         style="display: none"
         role="dialog"
         aria-modal="true"
-        aria-label="详情面板"
       >
-        <div class="drawer-overlay" id="drawerOverlay"></div>
-        <div class="drawer-panel" id="drawerPanel">
-          <!-- Header -->
-          <div class="drawer-header">
-            <div class="drawer-header-info">
-              <span class="drawer-category" id="drawerCategory"></span>
-              <span class="drawer-date" id="drawerDate"></span>
-            </div>
-            <button class="drawer-close" id="drawerClose" aria-label="关闭详情">
+        <div class="reader-header">
+          <button class="reader-back" id="readerBack">
+            <i data-lucide="arrow-left"></i>
+            <span>返回</span>
+          </button>
+          <div class="reader-title" id="readerTitle"></div>
+          <div class="reader-actions">
+            <button
+              class="reader-action-btn"
+              id="readerFavBtn"
+              aria-label="收藏"
+            >
+              <i data-lucide="star"></i>
+            </button>
+            <button
+              class="reader-action-btn"
+              id="readerEditBtn"
+              aria-label="编辑"
+            >
+              <i data-lucide="pencil"></i>
+            </button>
+            <button
+              class="reader-action-btn"
+              id="readerDeleteBtn"
+              aria-label="删除"
+            >
+              <i data-lucide="trash-2"></i>
+            </button>
+            <button
+              class="reader-action-btn"
+              id="readerClose"
+              aria-label="关闭"
+            >
               <i data-lucide="x"></i>
             </button>
           </div>
-          <!-- Meta Strip -->
-          <div class="drawer-meta" id="drawerMeta">
-            <span class="drawer-meta-item" id="drawerFileType"></span>
-            <span class="drawer-meta-sep"></span>
-            <span class="drawer-meta-item" id="drawerFileSize"></span>
+        </div>
+        <div class="reader-body" id="readerBody">
+          <div class="reader-meta">
+            <span class="reader-category" id="readerCategory"></span>
+            <span class="reader-sep">·</span>
+            <span class="reader-tags" id="readerTags"></span>
+            <span class="reader-sep">·</span>
+            <span class="reader-date" id="readerDate"></span>
           </div>
-          <!-- Quick Actions -->
-          <div class="drawer-quick-actions">
-            <button class="drawer-quick-btn drawer-quick-btn--fav" id="drawerFavBtn">
-              <i data-lucide="star"></i> 收藏
-            </button>
-            <button class="drawer-quick-btn" id="drawerEditBtn">
-              <i data-lucide="pencil"></i> 编辑
-            </button>
-            <button class="drawer-quick-btn" id="drawerDownloadBtn">
-              <i data-lucide="download"></i> 下载
-            </button>
-          </div>
-          <!-- Body -->
-          <div class="drawer-body" id="drawerBody">
-            <h2 class="drawer-title" id="drawerTitle"></h2>
-            <div class="drawer-tags" id="drawerTags"></div>
-            <div class="drawer-desc" id="drawerDesc"></div>
-            <div class="drawer-preview" id="drawerPreview"></div>
-          </div>
-          <!-- Footer (Delete action) -->
-          <div class="drawer-footer" id="drawerActions">
-            <button class="btn btn-danger btn-sm" id="drawerDeleteBtn">
-              <i data-lucide="trash-2"></i> 删除
-            </button>
-          </div>
+          <h1 class="reader-heading" id="readerHeading"></h1>
+          <div class="reader-content" id="readerContent"></div>
         </div>
       </div>
     </div>
 
-    <!-- Add/Edit Modal (keep existing) -->
+    <!-- Form Modal -->
     <div
       id="formModal"
       class="modal"
       style="display: none"
       role="dialog"
       aria-modal="true"
-      aria-label="编辑表单"
     >
       <div class="modal-overlay" id="formOverlay"></div>
       <div class="modal-content">
@@ -297,7 +245,7 @@
       </div>
     </div>
 
-    <!-- Admin Panel (keep existing) -->
+    <!-- Admin Panel -->
     <div
       id="adminPanel"
       class="admin-panel"
@@ -309,17 +257,20 @@
         <div class="admin-header">
           <h2>管理面板</h2>
           <div class="admin-actions">
-            <button class="btn btn-primary" id="deployBtn">
-              <i data-lucide="rocket"></i> 部署到 GitHub
-            </button>
             <button class="btn btn-secondary" id="exportBtn">
               <i data-lucide="download"></i> 导出 JSON
             </button>
             <button class="btn btn-secondary" id="importBtn">
               <i data-lucide="upload"></i> 导入 JSON
             </button>
+            <button class="btn btn-ghost" id="checkUpdateBtn">
+              <i data-lucide="refresh-cw"></i> 检查更新
+            </button>
+            <button class="btn btn-secondary" id="resetFromServerBtn">
+              <i data-lucide="rotate-ccw"></i> 重置为服务端
+            </button>
             <button class="btn btn-danger" id="closeAdmin">
-              <i data-lucide="x"></i> 关闭面板
+              <i data-lucide="x"></i> 关闭
             </button>
           </div>
         </div>
@@ -352,7 +303,6 @@
     <datalist id="pathSuggestions"></datalist>
 
     <script src="js/utils.js"></script>
-    <script src="js/api.js"></script>
     <script src="js/app.js"></script>
     <script src="js/admin.js"></script>
   </body>
