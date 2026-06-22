@@ -1,10 +1,11 @@
-﻿const CACHE_NAME = 'knowledge-base-v2';
+﻿const CACHE_NAME = 'kbs-flow-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/app.js',
   '/js/admin.js',
+  '/js/api.js',
   '/js/utils.js',
   '/data/index.json',
   '/feed.xml',

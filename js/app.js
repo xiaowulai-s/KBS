@@ -34,6 +34,7 @@
     this.updateStatus();
     this.renderFilterChips();
     this.initTheme();
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
   async loadData() {

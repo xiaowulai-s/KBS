@@ -214,6 +214,20 @@ def main():
     existing = load_existing_index()
     entries = scan_docs()
 
+    # Deduplicate IDs: ensure all entries have unique IDs
+    seen_ids = set()
+    new_id = max((e.get("id", 0) for e in entries), default=0)
+    deduped_entries = []
+    for entry in entries:
+        eid = entry.get("id", new_id + 1)
+        while eid in seen_ids:
+            new_id += 1
+            eid = new_id
+        entry["id"] = eid
+        seen_ids.add(eid)
+        new_id = max(new_id, eid + 1)
+        deduped_entries.append(entry)
+
     index_data = {
         "version": existing.get("version", "1.0.0"),
         "siteTitle": existing.get("siteTitle", "本地文件知识库"),
@@ -221,7 +235,7 @@ def main():
             "siteDescription", "通过 GitHub Pages 分享的本地文件知识库"
         ),
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "entries": entries,
+        "entries": deduped_entries,
     }
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:

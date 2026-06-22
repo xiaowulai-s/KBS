@@ -72,13 +72,23 @@ def generate_rss():
     for entry in entries:
         title = sanitize_xml(entry.get("title", "未命名"))
         path = entry.get("path", "")
+        file_type = entry.get("type", "other")
         desc_raw = entry.get("description", "暂无描述")
 
-        # 如果 description 太短，尝试从文件提取
+        # 如果 description 为空或太短，尝试从文件提取
+        use_custom_desc = False
         if len(desc_raw) < 20:
-            file_path = BASE_DIR / path
-            if file_path.exists():
-                desc_raw = extract_description_from_md(file_path)
+            # Only try to extract description from markdown files
+            if file_type == "markdown":
+                file_path = BASE_DIR / path
+                if file_path.exists():
+                    desc_raw = extract_description_from_md(file_path)
+                    use_custom_desc = True
+
+        # If we didn't customize the description, use the one from index.json directly
+        if not use_custom_desc and desc_raw == entry.get("title", ""):
+            # Description equals title, use the description field
+            desc_raw = entry.get("description", "暂无描述")
 
         description = sanitize_xml(desc_raw[:200])
         pub_date = entry.get("createdAt", "")
