@@ -34,20 +34,36 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch - network first for data/API, cache first for static assets
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  const isData = url.pathname.includes('/data/') || url.pathname.includes('/api/');
+  const isHtml = event.request.headers.get('accept')?.includes('text/html');
+
+  if (isData) {
+    // Always fetch fresh data, fallback to cache only when offline
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache successful responses
         if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       }).catch(() => {
-        // Offline fallback
-        if (event.request.headers.get('accept').includes('text/html')) {
+        if (isHtml) {
           return caches.match('/index.html');
         }
       });

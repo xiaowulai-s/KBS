@@ -1,4 +1,4 @@
-﻿const APP = {
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿const APP = {
   STORAGE_KEY: "knowledgeBaseData",
   data: null,
   categories: new Set(),
@@ -19,9 +19,15 @@
   density: localStorage.getItem("kb_density") || "normal",
   expandedId: null,
   cmdHighlight: -1,
+  apiMode: false,
 
   async init() {
     this.registerSW();
+    this.apiMode = await API.check();
+    if (this.apiMode) {
+      console.log("API 模式已启用：数据通过本地后端服务持久化");
+      localStorage.removeItem("kb_localOverrides");
+    }
     await this.loadData();
     this.loadUrlState();
     this.setupOfflineDetection();
@@ -38,6 +44,21 @@
   },
 
   async loadData() {
+    if (this.apiMode) {
+      try {
+        this.data = await API.listEntries();
+        this.rebuildMetadata();
+        this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+        this.saveData();
+        console.log("Loaded from API:", this.data.entries.length, "entries");
+        return;
+      } catch (err) {
+        console.error("API load failed, falling back:", err);
+        this.apiMode = false;
+        API.reset();
+      }
+    }
+
     const stored = localStorage.getItem(this.STORAGE_KEY);
     if (stored) {
       try {
@@ -460,6 +481,12 @@
           icon: "refresh-cw",
           hint: "从服务端同步",
         },
+        {
+          id: "deploy",
+          label: "部署到 GitHub",
+          icon: "rocket",
+          hint: "推送并部署 Pages",
+        },
         { id: "density-compact", label: "紧凑模式", icon: "list", hint: "⌘1" },
         { id: "density-normal", label: "标准模式", icon: "list", hint: "⌘2" },
         { id: "density-cozy", label: "舒适模式", icon: "list", hint: "⌘3" },
@@ -575,6 +602,7 @@
     else if (cmd === "import")
       document.getElementById("importFileInput").click();
     else if (cmd === "sync") this.checkServerUpdate();
+    else if (cmd === "deploy") ADMIN.deployToGitHub();
     else if (cmd === "density-compact") this.setDensity("compact");
     else if (cmd === "density-normal") this.setDensity("normal");
     else if (cmd === "density-cozy") this.setDensity("cozy");
@@ -862,7 +890,7 @@
       .getElementById("entryForm")
       .addEventListener("submit", (e) => this.handleFormSubmit(e));
 
-    // Export/Import
+    // Export/Import/Deploy
     document
       .getElementById("exportBtn")
       .addEventListener("click", () => ADMIN.exportJSON());
@@ -874,6 +902,9 @@
     document
       .getElementById("importFileInput")
       .addEventListener("change", (e) => ADMIN.importJSON(e));
+    const deployBtn = document.getElementById("deployBtn");
+    if (deployBtn)
+      deployBtn.addEventListener("click", () => ADMIN.deployToGitHub());
 
     // Sync buttons
     document
@@ -1055,7 +1086,7 @@
     document.getElementById("formModal").style.display = "none";
   },
 
-  handleFormSubmit(e) {
+  async handleFormSubmit(e) {
     e.preventDefault();
     const editId = document.getElementById("editId").value;
     const titleInput = document.getElementById("formTitle");
@@ -1075,61 +1106,105 @@
       .filter(Boolean);
     const path = pathInput.value.trim();
     const description = descInput.value.trim();
+    const title = titleInput.value.trim();
 
-    if (editId) {
-      const entry = this.data.entries.find((en) => en.id === parseInt(editId));
-      if (entry) {
-        entry.title = titleInput.value.trim();
-        entry.category = category;
-        entry.tags = tags;
-        entry.path = path;
-        entry.description = description;
+    if (this.apiMode) {
+      try {
+        if (editId) {
+          const updated = await API.updateEntry(parseInt(editId), {
+            title,
+            category,
+            tags,
+            path,
+            description,
+          });
+          const idx = this.data.entries.findIndex((en) => en.id === updated.id);
+          if (idx !== -1) this.data.entries[idx] = updated;
+          Toast.success("更新成功");
+        } else {
+          const created = await API.createEntry({
+            title,
+            category,
+            tags,
+            path,
+            description,
+            createdAt: new Date().toISOString().slice(0, 10),
+            type: FileType.detect(path),
+          });
+          this.data.entries.push(created);
+          this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
+          Toast.success("添加成功");
+        }
+      } catch (err) {
+        Toast.error("保存失败: " + err.message);
+        return;
+      }
+    } else {
+      if (editId) {
+        const entry = this.data.entries.find((en) => en.id === parseInt(editId));
+        if (entry) {
+          entry.title = title;
+          entry.category = category;
+          entry.tags = tags;
+          entry.path = path;
+          entry.description = description;
+          this.categories.add(category);
+          tags.forEach((t) => this.tags.add(t));
+        }
+      } else {
+        this.data.entries.push({
+          id: this.nextId++,
+          title,
+          category,
+          tags,
+          path,
+          description,
+          createdAt: new Date().toISOString().slice(0, 10),
+          type: FileType.detect(path),
+        });
         this.categories.add(category);
         tags.forEach((t) => this.tags.add(t));
       }
-    } else {
-      this.data.entries.push({
-        id: this.nextId++,
-        title: titleInput.value.trim(),
-        category,
-        tags,
-        path,
-        description,
-        createdAt: new Date().toISOString().slice(0, 10),
-        type: FileType.detect(path),
-      });
-      this.categories.add(category);
-      tags.forEach((t) => this.tags.add(t));
     }
+
+    this.rebuildMetadata();
     this.setupSearch();
     this.saveData();
     this.closeForm();
     this.renderList();
     this.renderFilterChips();
     this.updateStatus();
-    Toast.success(editId ? "更新成功" : "添加成功");
     if (document.getElementById("adminPanel").style.display !== "none")
       ADMIN.renderTable();
   },
 
-  deleteEntry(id) {
+  async deleteEntry(id) {
     const entry = this.data.entries.find((e) => e.id === id);
     if (!entry) return;
-    ConfirmDialog.show("确定要删除「" + entry.title + "」吗？").then((ok) => {
-      if (!ok) return;
-      this.data.entries = this.data.entries.filter((e) => e.id !== id);
-      this.rebuildMetadata();
-      this.setupSearch();
-      this.saveData();
-      this.renderList();
-      this.renderFilterChips();
-      this.updateStatus();
-      if (this.expandedId === id) this.collapseEntry();
-      if (this.currentReaderId === id) this.closeReader();
-      if (document.getElementById("adminPanel").style.display !== "none")
-        ADMIN.renderTable();
-      Toast.success("删除成功");
-    });
+    const ok = await ConfirmDialog.show("确定要删除「" + entry.title + "」吗？");
+    if (!ok) return;
+
+    if (this.apiMode) {
+      try {
+        await API.deleteEntry(id);
+      } catch (err) {
+        Toast.error("删除失败: " + err.message);
+        return;
+      }
+    }
+
+    this.data.entries = this.data.entries.filter((e) => e.id !== id);
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderList();
+    this.renderFilterChips();
+    this.updateStatus();
+    if (this.expandedId === id) this.collapseEntry();
+    if (this.currentReaderId === id) this.closeReader();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("删除成功");
   },
 
   downloadEntry(id) {
@@ -1147,6 +1222,15 @@
 
   saveData() {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+  },
+
+  loadFavorites() {
+    try {
+      const stored = localStorage.getItem("kb_favorites");
+      this.favorites = new Set(stored ? JSON.parse(stored) : []);
+    } catch (e) {
+      this.favorites = new Set();
+    }
   },
 
   toggleFavorite(id) {
