@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'kbs-flow-v1';
+﻿﻿const CACHE_NAME = 'kbs-fluent-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -6,10 +6,13 @@ const STATIC_ASSETS = [
   '/js/app.js',
   '/js/admin.js',
   '/js/api.js',
+  '/js/ui.js',
   '/js/utils.js',
   '/data/index.json',
   '/feed.xml',
   '/404.html',
+  '/manifest.json',
+  '/favicon.svg',
 ];
 
 // Install - cache static assets

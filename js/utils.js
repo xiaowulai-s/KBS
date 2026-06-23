@@ -213,6 +213,77 @@ const SearchHistory = {
   },
 };
 
+// Prompt dialog
+const PromptDialog = {
+  overlay: null,
+  callback: null,
+
+  init() {
+    this.overlay = document.getElementById("promptOverlay");
+    if (!this.overlay) {
+      this.overlay = document.createElement("div");
+      this.overlay.id = "promptOverlay";
+      this.overlay.className = "modal";
+      this.overlay.style.display = "none";
+      this.overlay.innerHTML = `
+        <div class="modal-overlay" id="promptBg"></div>
+        <div class="modal-content" style="max-width:420px;">
+          <div class="modal-header">
+            <h2 id="promptTitle" style="font-size:18px;">提示</h2>
+          </div>
+          <div style="padding:0 var(--space-5) var(--space-4);">
+            <p id="promptMessage" style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;"></p>
+            <input type="text" id="promptInput" class="new-category-input" style="width:100%;height:36px;padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <datalist id="promptSuggestions"></datalist>
+            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+              <button class="btn btn-secondary" id="promptCancel">取消</button>
+              <button class="btn btn-primary" id="promptOk">确定</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(this.overlay);
+      this.overlay.querySelector("#promptCancel").addEventListener("click", () => this.hide());
+      this.overlay.querySelector("#promptBg").addEventListener("click", () => this.hide());
+      this.overlay.querySelector("#promptInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.overlay.querySelector("#promptOk").click();
+        }
+      });
+    }
+  },
+
+  show(title, message, suggestions = []) {
+    this.init();
+    return new Promise((resolve) => {
+      this.callback = resolve;
+      document.getElementById("promptTitle").textContent = title;
+      document.getElementById("promptMessage").textContent = message;
+      const input = document.getElementById("promptInput");
+      input.value = "";
+      input.setAttribute("list", suggestions.length > 0 ? "promptSuggestions" : "");
+      const dl = document.getElementById("promptSuggestions");
+      if (dl) dl.innerHTML = suggestions.map((s) => `<option value="${s}">`).join("");
+      this.overlay.style.display = "flex";
+      input.focus();
+      document.getElementById("promptOk").onclick = () => {
+        const val = input.value.trim();
+        this.hide();
+        resolve(val);
+      };
+    });
+  },
+
+  hide() {
+    this.overlay.style.display = "none";
+    if (this.callback) {
+      this.callback(null);
+      this.callback = null;
+    }
+  },
+};
+
 // Sort helper
 const Sorter = {
   sortByDate(entries, ascending = false) {

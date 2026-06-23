@@ -9,14 +9,9 @@
     <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.475.0/dist/umd/lucide.min.js"></script>
-    <link
-      rel="alternate"
-      type="application/rss+xml"
-      title="KBS"
-      href="feed.xml"
-    />
+    <link rel="alternate" type="application/rss+xml" title="KBS" href="feed.xml" />
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color" content="#005fb8" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="KBS" />
@@ -24,161 +19,239 @@
   </head>
   <body>
     <div class="app">
-      <!-- Status Bar -->
-      <header class="status-bar" role="banner">
-        <div class="status-left">
-          <span class="status-brand">KBS</span>
-          <span class="status-sep"></span>
-          <span class="status-text" id="statusText">共 0 条</span>
+      <!-- Top Bar -->
+      <header class="top-bar" role="banner">
+        <div class="top-bar-left">
+          <button class="top-bar-menu" id="sidebarToggle" aria-label="切换侧边栏">
+            <i data-lucide="panel-left"></i>
+          </button>
+          <div class="brand">
+            <i data-lucide="library"></i>
+            <span>KBS</span>
+          </div>
         </div>
-        <div class="status-right">
-          <button class="status-btn" id="adminToggleBtn" aria-label="管理面板">
+
+        <div class="top-bar-search">
+          <button class="search-box" id="globalSearchTrigger" aria-label="打开命令面板">
+            <i data-lucide="search"></i>
+            <span>搜索知识库...</span>
+            <kbd class="search-kbd">Ctrl K</kbd>
+          </button>
+        </div>
+
+        <div class="top-bar-right">
+          <button class="icon-btn" id="themeToggle" aria-label="切换主题">
+            <i data-lucide="moon" id="themeIcon"></i>
+          </button>
+          <button class="icon-btn" id="adminToggleBtn" aria-label="管理面板">
             <i data-lucide="settings"></i>
           </button>
-          <button class="status-btn" id="themeToggle" aria-label="切换主题">
-            <i data-lucide="moon" id="themeIcon"></i>
+          <button class="btn btn-primary btn-sm" id="addBtnTop">
+            <i data-lucide="plus"></i>
+            <span>添加</span>
           </button>
         </div>
       </header>
 
-      <!-- Entry List -->
-      <main class="entry-list" id="entryList" role="list" aria-label="条目列表">
+      <!-- Three Column Layout -->
+      <div class="layout" id="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-search">
+            <button class="search-box search-box-sm" id="sidebarSearchTrigger">
+              <i data-lucide="search"></i>
+              <span>搜索知识库...</span>
+              <kbd class="search-kbd">⌘K</kbd>
+            </button>
+          </div>
 
-      <!-- Bottom Bar -->
-      <footer class="bottom-bar" id="bottomBar">
-        <div class="bottom-main">
-          <div class="bottom-filters" id="filterChips"></div>
-          <div class="bottom-actions">
-            <button class="bottom-btn" id="filterToggleBtn">
-              <i data-lucide="filter"></i>
-              <span id="filterLabel">全部</span>
-            </button>
-            <button class="bottom-btn" id="sortBtn">
-              <i data-lucide="arrow-up-down"></i>
-              <span id="sortLabel">最新</span>
-            </button>
-            <button class="bottom-btn" id="densityBtn" title="切换密度 ⌘1-3">
-              <i data-lucide="list"></i>
-            </button>
-            <button class="bottom-btn bottom-btn-primary" id="addBtn">
-              <i data-lucide="plus"></i>
-            </button>
-          </div>
-        </div>
-        <div class="bottom-panel" id="filterPanel" style="display: none">
-          <div class="filter-group">
-            <div class="filter-group-label">分类</div>
-            <div class="filter-options" id="filterCategories"></div>
-          </div>
-          <div class="filter-group">
-            <div class="filter-group-label">标签</div>
-            <div class="filter-tags" id="filterTags"></div>
-          </div>
-        </div>
-        <div class="bottom-stats" id="bottomStats" style="display: none"></div>
-      </footer>
+          <nav class="sidebar-section" aria-label="工作区">
+            <div class="sidebar-item active" data-view="all">
+              <i data-lucide="layout-grid"></i>
+              <span>全部条目</span>
+              <span class="sidebar-count" id="countAll">0</span>
+            </div>
+            <div class="sidebar-item" data-view="recent">
+              <i data-lucide="clock"></i>
+              <span>最近阅读</span>
+              <span class="sidebar-count" id="countRecent">0</span>
+            </div>
+            <div class="sidebar-item" data-view="favorites">
+              <i data-lucide="star"></i>
+              <span>我的收藏</span>
+              <span class="sidebar-count" id="countFavorites">0</span>
+            </div>
+            <div class="sidebar-item" data-view="uncategorized">
+              <i data-lucide="inbox"></i>
+              <span>未分类</span>
+              <span class="sidebar-count" id="countUncategorized">0</span>
+            </div>
+          </nav>
 
-      <!-- Command Palette -->
-      <div
-        id="commandPalette"
-        class="command-palette"
-        style="display: none"
-        role="dialog"
-        aria-label="命令面板"
-      >
-        <div class="cmd-overlay" id="cmdOverlay"></div>
-        <div class="cmd-panel">
-          <div class="cmd-input-wrap">
-            <span class="cmd-prefix" id="cmdPrefix"></span>
-            <input
-              type="text"
-              id="cmdInput"
-              placeholder="搜索知识库..."
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <span class="cmd-hint" id="cmdHint"></span>
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>分类</span>
+              <button class="sidebar-section-action" id="collapseCategories" aria-label="折叠分类">
+                <i data-lucide="chevron-up"></i>
+              </button>
+            </div>
+            <div class="sidebar-tree" id="categoryTree"></div>
           </div>
-          <div class="cmd-results" id="cmdResults"></div>
-          <div class="cmd-footer">
-            <span>↑↓ 导航</span><span>Enter 选择</span><span>Esc 关闭</span>
-            <span class="cmd-hint-text" id="cmdModeHint"
-              >输入 &gt; 执行命令 · @ 按标签 · # 按分类</span
-            >
+
+          <div class="sidebar-section">
+            <div class="sidebar-section-header">
+              <span>热门标签</span>
+            </div>
+            <div class="sidebar-tags" id="sidebarTags"></div>
           </div>
-        </div>
+        </aside>
+
+        <!-- List Column -->
+        <main class="list-column" role="main">
+          <div class="list-toolbar">
+            <div class="list-toolbar-left">
+              <h1 class="list-title" id="listTitle">全部条目</h1>
+              <span class="list-subtitle" id="listSubtitle">共 0 条</span>
+              <div class="filter-chips" id="filterChips"></div>
+            </div>
+            <div class="list-toolbar-right">
+              <div class="view-toggle" id="viewToggle">
+                <button class="view-btn active" data-view="list" aria-label="列表视图">
+                  <i data-lucide="list"></i>
+                </button>
+                <button class="view-btn" data-view="grid" aria-label="网格视图">
+                  <i data-lucide="layout-grid"></i>
+                </button>
+              </div>
+              <div class="toolbar-divider"></div>
+              <button class="icon-btn" id="sortBtn" title="排序">
+                <i data-lucide="arrow-up-down"></i>
+              </button>
+              <button class="icon-btn" id="densityBtn" title="切换密度">
+                <i data-lucide="list"></i>
+              </button>
+              <button class="icon-btn" id="batchToggleBtn" title="批量编辑">
+                <i data-lucide="check-square"></i>
+              </button>
+              <div class="toolbar-divider"></div>
+              <button class="btn btn-primary btn-sm" id="addBtn">
+                <i data-lucide="plus"></i>
+                <span>添加</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="batch-bar" id="batchBar" style="display: none">
+            <span class="batch-count" id="batchCount">已选择 0 项</span>
+            <div class="batch-actions">
+              <button class="btn btn-secondary btn-sm" id="batchMoveBtn">
+                <i data-lucide="folder-input"></i> 移动到
+              </button>
+              <button class="btn btn-secondary btn-sm" id="batchTagBtn">
+                <i data-lucide="tag"></i> 加标签
+              </button>
+              <button class="btn btn-danger btn-sm" id="batchDeleteBtn">
+                <i data-lucide="trash-2"></i> 删除
+              </button>
+              <button class="btn btn-ghost btn-sm" id="batchCancelBtn">取消</button>
+            </div>
+          </div>
+
+          <div class="list-scroll" id="listScroll">
+            <div class="entry-list" id="entryList" role="list" aria-label="条目列表"></div>
+            <div class="empty-state" id="emptyState" style="display: none">
+              <i data-lucide="inbox"></i>
+              <p>暂无条目</p>
+              <span>点击右上角「添加」按钮创建第一条知识</span>
+            </div>
+          </div>
+        </main>
+
+        <!-- Detail Column -->
+        <aside class="detail-column" id="detailColumn">
+          <div class="detail-empty" id="detailEmpty">
+            <div class="detail-empty-icon">
+              <i data-lucide="book-open"></i>
+            </div>
+            <h2>选择一个条目开始阅读</h2>
+            <p>从左侧列表中点击任意条目查看详情</p>
+          </div>
+          <div class="detail-content" id="detailContent" style="display: none">
+            <div class="detail-header">
+              <div class="detail-meta">
+                <span class="detail-category" id="detailCategory"></span>
+                <span class="detail-sep">·</span>
+                <span class="detail-tags" id="detailTags"></span>
+                <span class="detail-sep">·</span>
+                <span class="detail-date" id="detailDate"></span>
+              </div>
+              <h1 class="detail-title" id="detailTitle"></h1>
+              <p class="detail-desc" id="detailDesc"></p>
+              <div class="detail-actions">
+                <button class="btn btn-primary btn-sm" id="detailReadBtn">
+                  <i data-lucide="book-open"></i> 阅读
+                </button>
+                <button class="btn btn-secondary btn-sm" id="detailEditBtn">
+                  <i data-lucide="pencil"></i> 编辑
+                </button>
+                <button class="btn btn-ghost btn-sm" id="detailFavBtn">
+                  <i data-lucide="star"></i> 收藏
+                </button>
+                <button class="btn btn-ghost btn-sm" id="detailDownloadBtn">
+                  <i data-lucide="download"></i>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="detailDeleteBtn">
+                  <i data-lucide="trash-2"></i>
+                </button>
+              </div>
+            </div>
+            <div class="detail-preview" id="detailPreview"></div>
+          </div>
+        </aside>
       </div>
 
-      <!-- Floating Toolbox -->
-      <div id="toolbox" class="toolbox" style="display: none" role="menu"></div>
+      <!-- Mobile Bottom Tab -->
+      <nav class="mobile-tab" id="mobileTab">
+        <button class="mobile-tab-item active" data-tab="list">
+          <i data-lucide="list"></i>
+          <span>列表</span>
+        </button>
+        <button class="mobile-tab-item" data-tab="detail">
+          <i data-lucide="book-open"></i>
+          <span>详情</span>
+        </button>
+        <button class="mobile-tab-item" data-tab="mine">
+          <i data-lucide="user"></i>
+          <span>我的</span>
+        </button>
+      </nav>
+    </div>
 
-      <!-- Fullscreen Reader -->
-      <div
-        id="reader"
-        class="reader"
-        style="display: none"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div class="reader-header">
-          <button class="reader-back" id="readerBack">
-            <i data-lucide="arrow-left"></i>
-            <span>返回</span>
-          </button>
-          <div class="reader-title" id="readerTitle"></div>
-          <div class="reader-actions">
-            <button
-              class="reader-action-btn"
-              id="readerFavBtn"
-              aria-label="收藏"
-            >
-              <i data-lucide="star"></i>
-            </button>
-            <button
-              class="reader-action-btn"
-              id="readerEditBtn"
-              aria-label="编辑"
-            >
-              <i data-lucide="pencil"></i>
-            </button>
-            <button
-              class="reader-action-btn"
-              id="readerDeleteBtn"
-              aria-label="删除"
-            >
-              <i data-lucide="trash-2"></i>
-            </button>
-            <button
-              class="reader-action-btn"
-              id="readerClose"
-              aria-label="关闭"
-            >
-              <i data-lucide="x"></i>
-            </button>
-          </div>
+    <!-- Command Palette -->
+    <div id="commandPalette" class="command-palette" style="display: none" role="dialog" aria-label="命令面板">
+      <div class="cmd-overlay" id="cmdOverlay"></div>
+      <div class="cmd-panel">
+        <div class="cmd-input-wrap">
+          <span class="cmd-prefix" id="cmdPrefix"></span>
+          <input
+            type="text"
+            id="cmdInput"
+            placeholder="搜索知识库..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span class="cmd-hint" id="cmdHint"></span>
         </div>
-        <div class="reader-body" id="readerBody">
-          <div class="reader-meta">
-            <span class="reader-category" id="readerCategory"></span>
-            <span class="reader-sep">·</span>
-            <span class="reader-tags" id="readerTags"></span>
-            <span class="reader-sep">·</span>
-            <span class="reader-date" id="readerDate"></span>
-          </div>
-          <h1 class="reader-heading" id="readerHeading"></h1>
-          <div class="reader-content" id="readerContent"></div>
+        <div class="cmd-results" id="cmdResults"></div>
+        <div class="cmd-footer">
+          <span>↑↓ 导航</span><span>Enter 选择</span><span>Esc 关闭</span>
+          <span class="cmd-hint-text" id="cmdModeHint">输入 &gt; 执行命令 · @ 按标签 · # 按分类</span>
         </div>
       </div>
     </div>
 
     <!-- Form Modal -->
-    <div
-      id="formModal"
-      class="modal"
-      style="display: none"
-      role="dialog"
-      aria-modal="true"
-    >
+    <div id="formModal" class="modal" style="display: none" role="dialog" aria-modal="true">
       <div class="modal-overlay" id="formOverlay"></div>
       <div class="modal-content">
         <div class="modal-header">
@@ -191,12 +264,7 @@
           <input type="hidden" id="editId" />
           <div class="form-group">
             <label for="formTitle">标题 *</label>
-            <input
-              type="text"
-              id="formTitle"
-              required
-              placeholder="请输入文件标题"
-            />
+            <input type="text" id="formTitle" required placeholder="请输入文件标题" />
           </div>
           <div class="form-group">
             <label for="formCategory">分类 *</label>
@@ -212,49 +280,68 @@
           </div>
           <div class="form-group">
             <label for="formTags">标签（用逗号分隔）</label>
-            <input
-              type="text"
-              id="formTags"
-              placeholder="例如：JavaScript, 教程"
-            />
+            <input type="text" id="formTags" placeholder="例如：JavaScript, 教程" />
           </div>
           <div class="form-group">
             <label for="formPath">文件路径</label>
-            <input
-              type="text"
-              id="formPath"
-              placeholder="例如：docs/example.md"
-            />
+            <input type="text" id="formPath" placeholder="例如：docs/example.md" list="pathSuggestions" />
           </div>
           <div class="form-group">
             <label for="formDesc">描述</label>
-            <textarea
-              id="formDesc"
-              rows="3"
-              placeholder="简要描述此文件内容"
-            ></textarea>
+            <textarea id="formDesc" rows="3" placeholder="简要描述此文件内容"></textarea>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">保存</button>
-            <button type="button" class="btn btn-secondary" id="formCancel">
-              取消
-            </button>
+            <button type="button" class="btn btn-secondary" id="formCancel">取消</button>
           </div>
         </form>
       </div>
     </div>
 
+    <!-- Fullscreen Reader -->
+    <div id="reader" class="reader" style="display: none" role="dialog" aria-modal="true">
+      <div class="reader-header">
+        <button class="reader-back" id="readerBack">
+          <i data-lucide="arrow-left"></i>
+          <span>返回</span>
+        </button>
+        <div class="reader-title" id="readerTitle"></div>
+        <div class="reader-actions">
+          <button class="reader-action-btn" id="readerFavBtn" aria-label="收藏">
+            <i data-lucide="star"></i>
+          </button>
+          <button class="reader-action-btn" id="readerEditBtn" aria-label="编辑">
+            <i data-lucide="pencil"></i>
+          </button>
+          <button class="reader-action-btn" id="readerDeleteBtn" aria-label="删除">
+            <i data-lucide="trash-2"></i>
+          </button>
+          <button class="reader-action-btn" id="readerClose" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+      <div class="reader-body" id="readerBody">
+        <div class="reader-meta">
+          <span class="reader-category" id="readerCategory"></span>
+          <span class="reader-sep">·</span>
+          <span class="reader-tags" id="readerTags"></span>
+          <span class="reader-sep">·</span>
+          <span class="reader-date" id="readerDate"></span>
+        </div>
+        <h1 class="reader-heading" id="readerHeading"></h1>
+        <div class="reader-content" id="readerContent"></div>
+      </div>
+    </div>
+
     <!-- Admin Panel -->
-    <div
-      id="adminPanel"
-      class="admin-panel"
-      style="display: none"
-      role="dialog"
-      aria-label="管理面板"
-    >
-      <div class="container">
+    <div id="adminPanel" class="admin-panel" style="display: none" role="dialog" aria-label="管理面板">
+      <div class="admin-panel-inner">
         <div class="admin-header">
-          <h2>管理面板</h2>
+          <div class="admin-header-left">
+            <h2>管理面板</h2>
+            <span class="admin-subtitle">管理知识库数据与部署</span>
+          </div>
           <div class="admin-actions">
             <button class="btn btn-primary" id="deployBtn">
               <i data-lucide="rocket"></i> 部署到 GitHub
@@ -271,8 +358,8 @@
             <button class="btn btn-secondary" id="resetFromServerBtn">
               <i data-lucide="rotate-ccw"></i> 重置为服务端
             </button>
-            <button class="btn btn-danger" id="closeAdmin">
-              <i data-lucide="x"></i> 关闭
+            <button class="btn btn-ghost" id="closeAdmin">
+              <i data-lucide="x"></i>
             </button>
           </div>
         </div>
@@ -281,6 +368,7 @@
           <table class="admin-table" id="adminTable">
             <thead>
               <tr>
+                <th class="admin-checkbox"><input type="checkbox" id="adminSelectAll" /></th>
                 <th>ID</th>
                 <th>标题</th>
                 <th>分类</th>
@@ -296,16 +384,18 @@
       </div>
     </div>
 
-    <input
-      type="file"
-      id="importFileInput"
-      accept=".json"
-      style="display: none"
-    />
+    <!-- Floating Toolbox -->
+    <div class="toolbox" id="toolbox" style="display: none"></div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
+
+    <input type="file" id="importFileInput" accept=".json" style="display: none" />
     <datalist id="pathSuggestions"></datalist>
 
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
     <script src="js/admin.js"></script>
   </body>

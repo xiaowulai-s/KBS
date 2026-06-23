@@ -14,7 +14,7 @@ const ADMIN = {
 
     if (entries.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:40px;">暂无数据</td></tr>';
+        '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:40px;">暂无数据</td></tr>';
       return;
     }
 
@@ -24,6 +24,7 @@ const ADMIN = {
         const icon = FileType.getIcon(fileType);
         return `
         <tr data-id="${entry.id}">
+          <td class="admin-checkbox"><input type="checkbox" data-id="${entry.id}"></td>
           <td>${entry.id}</td>
           <td><strong>${icon} ${APP.escapeHtml(entry.title)}</strong></td>
           <td>${APP.escapeHtml(entry.category)}</td>
@@ -38,6 +39,16 @@ const ADMIN = {
       `;
       })
       .join("");
+
+    const selectAll = document.getElementById("adminSelectAll");
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.addEventListener("change", (e) => {
+        tbody.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.checked = e.target.checked;
+        });
+      });
+    }
   },
 
   // Render stats dashboard with category distribution
@@ -131,7 +142,8 @@ const ADMIN = {
     APP.rebuildMetadata();
     APP.setupSearch();
     APP.renderList();
-    APP.renderFilterChips();
+    APP.renderSidebar();
+    APP.renderDetail();
     APP.updateStatus();
     this.renderTable();
     Toast.success("删除成功");
@@ -204,7 +216,8 @@ const ADMIN = {
         APP.setupSearch();
         APP.saveData();
         APP.renderList();
-        APP.renderFilterChips();
+        APP.renderSidebar();
+        APP.renderDetail();
         APP.updateStatus();
         this.renderTable();
 

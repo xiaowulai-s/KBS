@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿const APP = {
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿const APP = {
   STORAGE_KEY: "knowledgeBaseData",
   data: null,
   categories: new Set(),
@@ -17,9 +17,13 @@
   selectedIds: new Set(),
   serverUpdate: null,
   density: localStorage.getItem("kb_density") || "normal",
-  expandedId: null,
+  selectedEntryId: null,
+  currentReaderId: null,
+  currentSidebarView: "all",
   cmdHighlight: -1,
   apiMode: false,
+  batchMode: false,
+  listView: localStorage.getItem("kb_list_view") || "list",
 
   async init() {
     this.registerSW();
@@ -36,10 +40,13 @@
     this.bindEvents();
     this.setupKeyboardShortcuts();
     this.applyDensity();
+    this.renderSidebar();
     this.renderList();
+    this.renderDetail();
     this.updateStatus();
     this.renderFilterChips();
     this.initTheme();
+    UI.init(this);
     if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
@@ -164,43 +171,71 @@
 
   renderList() {
     const list = document.getElementById("entryList");
+    const empty = document.getElementById("emptyState");
     const entries = this.getFilteredEntries();
+
     if (entries.length === 0) {
       list.innerHTML = "";
-      return;
-    }
-    list.innerHTML = entries.map((e, i) => this.renderEntryRow(e, i)).join("");
-    list.querySelectorAll(".entry-row").forEach((row) => {
-      const id = parseInt(row.dataset.id);
-      row.addEventListener("click", (ev) => {
-        if (
-          ev.target.closest(".entry-fav") ||
-          ev.target.closest(".entry-expand-actions") ||
-          ev.target.closest(".entry-expand-preview")
-        )
-          return;
-        if (this.expandedId === id) {
-          this.collapseEntry();
-        } else {
-          this.expandEntry(id);
+      if (empty) empty.style.display = "flex";
+    } else {
+      if (empty) empty.style.display = "none";
+      list.className =
+        "entry-list" + (this.listView === "grid" ? " grid-view" : "");
+      list.innerHTML = entries.map((e) => this.renderEntryRow(e)).join("");
+      list.querySelectorAll(".entry-row").forEach((row) => {
+        const id = parseInt(row.dataset.id);
+        const checkbox = row.querySelector('.entry-checkbox input[type="checkbox"]');
+        if (checkbox) {
+          checkbox.checked = this.selectedIds.has(id);
+          checkbox.addEventListener("change", (ev) => {
+            ev.stopPropagation();
+            this.toggleSelection(id);
+          });
         }
+        row.addEventListener("click", (ev) => {
+          if (
+            ev.target.closest(".entry-fav") ||
+            ev.target.closest(".entry-checkbox") ||
+            ev.target.closest(".entry-actions")
+          )
+            return;
+          if (this.batchMode) {
+            this.toggleSelection(id);
+            return;
+          }
+          this.selectEntry(id);
+        });
+        row.addEventListener("mouseenter", (ev) => {
+          if (this.batchMode) return;
+          const rect = row.getBoundingClientRect();
+          this.showToolbox(rect.right - 220, rect.top + 6, id);
+        });
+        row.addEventListener("mouseleave", () => {
+          setTimeout(() => {
+            if (!document.querySelector(".toolbox:hover")) this.hideToolbox();
+          }, 150);
+        });
       });
-      row.addEventListener("mouseenter", (ev) => {
-        const rect = row.getBoundingClientRect();
-        this.showToolbox(rect.right - 200, rect.top + 4, id);
-      });
-      row.addEventListener("mouseleave", () => {
-        setTimeout(() => {
-          if (!document.querySelector(".toolbox:hover")) this.hideToolbox();
-        }, 150);
-      });
-    });
+    }
     this.updateStatus();
+    this.updateListTitle();
+    this.updateSidebarCounts();
     this.updateUrlState();
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
-  renderEntryRow(entry, idx) {
+  selectEntry(id) {
+    this.selectedEntryId = id;
+    UI.addRecentId(id);
+    this.renderList();
+    this.renderDetail();
+    if (window.innerWidth <= 768) UI.showMobileTab("detail");
+  },
+
+  renderEntryRow(entry) {
     const isFav = this.favorites.has(entry.id);
+    const isSelected = this.selectedEntryId === entry.id;
+    const isBatchSelected = this.selectedIds.has(entry.id);
     const icon = this.getLucideIcon(FileType.detect(entry.path));
     const cat = this.escapeHtml(entry.category);
     const date = entry.createdAt || "";
@@ -209,9 +244,15 @@
     const tags = entry.tags
       .map((t) => `<span class="entry-tag">#${this.highlightText(t)}</span>`)
       .join("");
+    const checkbox = `<label class="entry-checkbox" onclick="event.stopPropagation()"><input type="checkbox" data-id="${entry.id}"></label>`;
+
+    let cls = `entry-row density-${this.density}`;
+    if (isSelected) cls += " active";
+    if (isBatchSelected) cls += " batch-selected";
 
     if (this.density === "compact") {
-      return `<div class="entry-row density-compact" data-id="${entry.id}" role="listitem">
+      return `<div class="${cls}" data-id="${entry.id}" role="listitem">
+        ${checkbox}
         <div class="entry-main">
           <i data-lucide="${icon}" class="entry-icon"></i>
           <span class="entry-title">${title}</span>
@@ -219,11 +260,11 @@
           <span class="entry-date">${date}</span>
           <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
         </div>
-        <div class="entry-expand" id="expand-${entry.id}"><div class="entry-expand-inner"></div></div>
       </div>`;
     }
     if (this.density === "cozy") {
-      return `<div class="entry-row density-cozy" data-id="${entry.id}" role="listitem">
+      return `<div class="${cls}" data-id="${entry.id}" role="listitem">
+        ${checkbox}
         <div class="entry-main">
           <div class="entry-top">
             <i data-lucide="${icon}" class="entry-icon"></i>
@@ -237,11 +278,11 @@
             <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
           </div>
         </div>
-        <div class="entry-expand" id="expand-${entry.id}"><div class="entry-expand-inner"></div></div>
       </div>`;
     }
     // default: normal
-    return `<div class="entry-row density-normal" data-id="${entry.id}" role="listitem">
+    return `<div class="${cls}" data-id="${entry.id}" role="listitem">
+      ${checkbox}
       <div class="entry-main">
         <i data-lucide="${icon}" class="entry-icon"></i>
         <span class="entry-title">${title}</span>
@@ -250,54 +291,56 @@
         <span class="entry-date">${date}</span>
         <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
       </div>
-      <div class="entry-expand" id="expand-${entry.id}"><div class="entry-expand-inner"></div></div>
     </div>`;
   },
 
-  expandEntry(id) {
-    if (this.expandedId === id) return;
-    if (this.expandedId) this.collapseEntry();
-    const entry = this.data.entries.find((e) => e.id === id);
-    if (!entry) return;
-    const expand = document.getElementById("expand-" + id);
-    if (!expand) return;
-    this.expandedId = id;
-
-    const inner = expand.querySelector(".entry-expand-inner");
-    inner.innerHTML = `
-      <div class="entry-expand-desc">${this.escapeHtml(entry.description || "暂无描述")}</div>
-      ${entry.path ? `<div class="entry-expand-path"><span>${this.escapeHtml(entry.path)}</span></div>` : ""}
-      <div class="entry-expand-preview" id="preview-${id}"><div class="loading-spinner"><div class="spinner"></div><p>加载中...</p></div></div>
-      <div class="entry-expand-actions">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();APP.openReader(${id})"><i data-lucide="maximize-2"></i> 全屏</button>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();APP.openForm(APP.data.entries.find(e=>e.id===${id}))"><i data-lucide="pencil"></i> 编辑</button>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();APP.deleteEntry(${id})"><i data-lucide="trash-2"></i> 删除</button>
-        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();APP.downloadEntry(${id})"><i data-lucide="download"></i> 下载</button>
-      </div>`;
-    expand.classList.add("open");
-
-    const row = expand.closest(".entry-row");
-    if (row) row.classList.add("expanded");
-
-    this.loadPreview(id);
-  },
-
-  collapseEntry() {
-    if (!this.expandedId) return;
-    const expand = document.getElementById("expand-" + this.expandedId);
-    if (expand) {
-      expand.classList.remove("open");
-      const row = expand.closest(".entry-row");
-      if (row) row.classList.remove("expanded");
+  renderDetail() {
+    const empty = document.getElementById("detailEmpty");
+    const content = document.getElementById("detailContent");
+    if (!empty || !content) return;
+    if (!this.selectedEntryId) {
+      empty.style.display = "flex";
+      content.style.display = "none";
+      return;
     }
-    this.expandedId = null;
+    const entry = this.data.entries.find((e) => e.id === this.selectedEntryId);
+    if (!entry) {
+      this.selectedEntryId = null;
+      empty.style.display = "flex";
+      content.style.display = "none";
+      return;
+    }
+    empty.style.display = "none";
+    content.style.display = "flex";
+
+    const isFav = this.isFavorite(entry.id);
+    document.getElementById("detailCategory").textContent = entry.category;
+    document.getElementById("detailTags").innerHTML = entry.tags
+      .map((t) => `<span class="detail-tag">#${this.escapeHtml(t)}</span>`)
+      .join(" ");
+    document.getElementById("detailDate").textContent = entry.createdAt || "-";
+    document.getElementById("detailTitle").textContent = entry.title;
+    document.getElementById("detailDesc").textContent =
+      entry.description || "暂无描述";
+
+    const favBtn = document.getElementById("detailFavBtn");
+    if (favBtn) {
+      favBtn.innerHTML = isFav
+        ? '<i data-lucide="star" style="fill:var(--warning);color:var(--warning);"></i> 已收藏'
+        : '<i data-lucide="star"></i> 收藏';
+      favBtn.onclick = () => this.toggleFavorite(entry.id);
+    }
+
+    const preview = document.getElementById("detailPreview");
+    preview.innerHTML =
+      '<div class="loading-spinner"><div class="spinner"></div><p>加载预览...</p></div>';
+    this.loadPreviewInto(entry, preview);
+
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
-  loadPreview(id) {
-    const entry = this.data.entries.find((e) => e.id === id);
-    if (!entry) return;
-    const el = document.getElementById("preview-" + id);
-    if (!el) return;
+  loadPreviewInto(entry, el) {
+    if (!entry || !el) return;
     const ft = FileType.detect(entry.path);
     if (!entry.path || !FileType.isPreviewable(ft)) {
       el.innerHTML =
@@ -316,25 +359,25 @@
           el.innerHTML =
             typeof marked !== "undefined"
               ? marked.parse(t)
-              : "<pre>" + APP.escapeHtml(t) + "</pre>";
+              : "<pre>" + this.escapeHtml(t) + "</pre>";
         })
         .catch(() => {
           el.innerHTML =
-            '<p style="color:var(--text-tertiary);font-size:13px;">文件不存在</p>';
+            '<p style="color:var(--text-tertiary);font-size:13px;">文件不存在或无法加载</p>';
         });
     } else if (ft === "image") {
       el.innerHTML =
         '<img src="' +
         this.escapeHtml(full) +
-        '" style="max-width:100%;border-radius:var(--radius);">';
+        '" style="max-width:100%;border-radius:var(--radius-md);">';
     } else if (ft === "pdf") {
       el.innerHTML =
         '<iframe src="' +
         this.escapeHtml(full) +
-        '" style="width:100%;height:400px;border:none;border-radius:var(--radius);"></iframe>';
+        '" style="width:100%;height:500px;border:none;border-radius:var(--radius-md);"></iframe>';
     } else if (ft === "video") {
       el.innerHTML =
-        '<video controls style="max-width:100%;border-radius:var(--radius);"><source src="' +
+        '<video controls style="max-width:100%;border-radius:var(--radius-md);"><source src="' +
         this.escapeHtml(full) +
         '"></video>';
     } else if (ft === "audio") {
@@ -346,6 +389,237 @@
       el.innerHTML =
         '<p style="color:var(--text-tertiary);font-size:13px;">暂不支持预览此文件类型</p>';
     }
+  },
+
+  // ─── Sidebar & Counts ───
+
+  renderSidebar() {
+    const categoryTree = document.getElementById("categoryTree");
+    const sidebarTags = document.getElementById("sidebarTags");
+    if (categoryTree) {
+      const cats = [...this.categories].sort();
+      categoryTree.innerHTML = cats
+        .map(
+          (c) =>
+            `<div class="tree-item ${this.activeCategory === c ? "active" : ""}" data-cat="${this.escapeHtml(c)}">
+              <i data-lucide="folder"></i>
+              <span>${this.escapeHtml(c)}</span>
+            </div>`,
+        )
+        .join("");
+      categoryTree.querySelectorAll(".tree-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          const cat = el.dataset.cat;
+          this.activeCategory = this.activeCategory === cat ? null : cat;
+          this.searchQuery = "";
+          this.renderSidebar();
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+        });
+      });
+    }
+    if (sidebarTags) {
+      const tags = [...this.tags].sort().slice(0, 20);
+      sidebarTags.innerHTML = tags
+        .map(
+          (t) =>
+            `<span class="tag-pill ${this.activeTag === t ? "active" : ""}" data-tag="${this.escapeHtml(t)}">#${this.escapeHtml(t)}</span>`,
+        )
+        .join("");
+      sidebarTags.querySelectorAll(".tag-pill").forEach((el) => {
+        el.addEventListener("click", () => {
+          const tag = el.dataset.tag;
+          this.activeTag = this.activeTag === tag ? null : tag;
+          this.searchQuery = "";
+          this.renderSidebar();
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+        });
+      });
+    }
+
+    document.querySelectorAll(".sidebar-item[data-view]").forEach((el) => {
+      el.classList.toggle("active", el.dataset.view === this.currentSidebarView);
+      el.addEventListener("click", () => {
+        this.currentSidebarView = el.dataset.view;
+        this.showFavoritesOnly = el.dataset.view === "favorites";
+        this.activeCategory = null;
+        this.activeTag = null;
+        this.searchQuery = "";
+        this.renderSidebar();
+        this.renderList();
+        this.renderFilterChips();
+        this.updateStatus();
+      });
+    });
+
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  },
+
+  updateSidebarCounts() {
+    const total = this.data.entries.length;
+    const recentIds = UI.getRecentIds();
+    const recentCount = this.data.entries.filter((e) => recentIds.includes(e.id)).length;
+    const favCount = this.favorites.size;
+    const uncategorizedCount = this.data.entries.filter(
+      (e) => !e.category || e.category === "未分类",
+    ).length;
+
+    const setCount = (id, count) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = count;
+    };
+    setCount("countAll", total);
+    setCount("countRecent", recentCount);
+    setCount("countFavorites", favCount);
+    setCount("countUncategorized", uncategorizedCount);
+  },
+
+  updateListTitle() {
+    const title = document.getElementById("listTitle");
+    if (!title) return;
+    const viewMap = {
+      all: "全部条目",
+      recent: "最近阅读",
+      favorites: "我的收藏",
+      uncategorized: "未分类",
+    };
+    if (this.activeCategory) {
+      title.textContent = this.activeCategory;
+    } else if (this.activeTag) {
+      title.textContent = "#" + this.activeTag;
+    } else if (this.showFavoritesOnly) {
+      title.textContent = viewMap.favorites;
+    } else {
+      title.textContent = viewMap[this.currentSidebarView] || "全部条目";
+    }
+  },
+
+  // ─── Batch Operations ───
+
+  toggleSelection(id) {
+    if (this.selectedIds.has(id)) this.selectedIds.delete(id);
+    else this.selectedIds.add(id);
+    this.renderList();
+    this.updateBatchBar();
+  },
+
+  setBatchMode(enabled) {
+    this.batchMode = enabled;
+    this.selectedIds.clear();
+    document.body.classList.toggle("batch-mode", enabled);
+    const bar = document.getElementById("batchBar");
+    if (bar) bar.style.display = enabled ? "flex" : "none";
+    this.renderList();
+    this.updateBatchBar();
+  },
+
+  updateBatchBar() {
+    const count = document.getElementById("batchCount");
+    if (count) count.textContent = `已选择 ${this.selectedIds.size} 项`;
+  },
+
+  async batchDelete() {
+    if (this.selectedIds.size === 0) return;
+    const ok = await ConfirmDialog.show(
+      `确定删除选中的 ${this.selectedIds.size} 项吗？`,
+    );
+    if (!ok) return;
+    for (const id of [...this.selectedIds]) {
+      if (this.apiMode) {
+        try {
+          await API.deleteEntry(id);
+        } catch (err) {
+          console.error("API delete failed:", err);
+        }
+      }
+      this.data.entries = this.data.entries.filter((e) => e.id !== id);
+    }
+    this.selectedIds.clear();
+    this.setBatchMode(false);
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderList();
+    this.renderSidebar();
+    this.renderDetail();
+    this.renderFilterChips();
+    this.updateStatus();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("批量删除成功");
+  },
+
+  async batchMove() {
+    if (this.selectedIds.size === 0) return;
+    const cats = [...this.categories].sort();
+    const cat = await PromptDialog.show(
+      "移动到分类",
+      "请选择或输入新分类",
+      cats,
+    );
+    if (!cat) return;
+    for (const id of [...this.selectedIds]) {
+      const entry = this.data.entries.find((e) => e.id === id);
+      if (!entry) continue;
+      entry.category = cat;
+      if (this.apiMode) {
+        try {
+          await API.updateEntry(id, entry);
+        } catch (err) {
+          console.error("API update failed:", err);
+        }
+      }
+    }
+    this.selectedIds.clear();
+    this.setBatchMode(false);
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderList();
+    this.renderSidebar();
+    this.renderFilterChips();
+    this.updateStatus();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("批量移动成功");
+  },
+
+  async batchTag() {
+    if (this.selectedIds.size === 0) return;
+    const tag = await PromptDialog.show(
+      "添加标签",
+      "请输入要添加的标签（多个用逗号分隔）",
+    );
+    if (!tag) return;
+    const newTags = tag.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+    for (const id of [...this.selectedIds]) {
+      const entry = this.data.entries.find((e) => e.id === id);
+      if (!entry) continue;
+      const set = new Set([...(entry.tags || []), ...newTags]);
+      entry.tags = [...set];
+      if (this.apiMode) {
+        try {
+          await API.updateEntry(id, entry);
+        } catch (err) {
+          console.error("API update failed:", err);
+        }
+      }
+    }
+    this.selectedIds.clear();
+    this.setBatchMode(false);
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    this.renderList();
+    this.renderSidebar();
+    this.renderFilterChips();
+    this.updateStatus();
+    if (document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    Toast.success("批量加标签成功");
   },
 
   // ─── Fullscreen Reader ───
@@ -368,8 +642,6 @@
     document.getElementById("readerTitle").textContent = entry.title;
     document.getElementById("readerContent").innerHTML =
       '<div class="loading-spinner"><div class="spinner"></div></div>';
-
-    this.collapseEntry();
 
     const ft = FileType.detect(entry.path);
     if (entry.path && FileType.isPreviewable(ft)) {
@@ -587,7 +859,7 @@
           this.searchQuery = "";
           this.closeCommandPalette();
           document.getElementById("cmdInput").value = "";
-          this.expandEntry(parseInt(el.dataset.id));
+          this.selectEntry(parseInt(el.dataset.id));
         });
       });
     }
@@ -695,76 +967,6 @@
       });
   },
 
-  toggleFilterPanel() {
-    const panel = document.getElementById("filterPanel");
-    const isOpen = panel.style.display !== "none";
-    panel.style.display = isOpen ? "none" : "block";
-    if (!isOpen) this.renderFilterPanel();
-  },
-
-  renderFilterPanel() {
-    const catContainer = document.getElementById("filterCategories");
-    const tagContainer = document.getElementById("filterTags");
-
-    catContainer.innerHTML = "";
-    const allBtn = document.createElement("button");
-    allBtn.className =
-      "filter-option" + (!this.activeCategory ? " active" : "");
-    allBtn.textContent = "全部";
-    allBtn.addEventListener("click", () => {
-      this.activeCategory = null;
-      this.currentPage = 1;
-      this.renderFilterPanel();
-      this.renderList();
-      this.renderFilterChips();
-      this.updateStatus();
-    });
-    catContainer.appendChild(allBtn);
-    [...this.categories].sort().forEach((c) => {
-      const btn = document.createElement("button");
-      btn.className =
-        "filter-option" + (this.activeCategory === c ? " active" : "");
-      btn.textContent = c;
-      btn.addEventListener("click", () => {
-        this.activeCategory = this.activeCategory === c ? null : c;
-        this.currentPage = 1;
-        this.renderFilterPanel();
-        this.renderList();
-        this.renderFilterChips();
-        this.updateStatus();
-      });
-      catContainer.appendChild(btn);
-    });
-
-    tagContainer.innerHTML = "";
-    const tagAll = document.createElement("button");
-    tagAll.className = "filter-tag" + (!this.activeTag ? " active" : "");
-    tagAll.textContent = "全部";
-    tagAll.addEventListener("click", () => {
-      this.activeTag = null;
-      this.currentPage = 1;
-      this.renderFilterPanel();
-      this.renderList();
-      this.renderFilterChips();
-      this.updateStatus();
-    });
-    tagContainer.appendChild(tagAll);
-    [...this.tags].sort().forEach((t) => {
-      const btn = document.createElement("button");
-      btn.className = "filter-tag" + (this.activeTag === t ? " active" : "");
-      btn.textContent = "#" + t;
-      btn.addEventListener("click", () => {
-        this.activeTag = this.activeTag === t ? null : t;
-        this.currentPage = 1;
-        this.renderFilterPanel();
-        this.renderList();
-        this.renderFilterChips();
-        this.updateStatus();
-      });
-      tagContainer.appendChild(btn);
-    });
-  },
-
   // ─── Density ───
 
   setDensity(mode) {
@@ -785,9 +987,9 @@
   updateStatus() {
     const total = this.data.entries.length;
     const filtered = this.getFilteredEntries().length;
-    const st = document.getElementById("statusText");
-    if (st)
-      st.textContent =
+    const subtitle = document.getElementById("listSubtitle");
+    if (subtitle)
+      subtitle.textContent =
         filtered === total
           ? "共 " + total + " 条"
           : "共 " + total + " 条 · 显示 " + filtered + " 条";
@@ -798,6 +1000,13 @@
   bindEvents() {
     const addBtn = document.getElementById("addBtn");
     if (addBtn) addBtn.addEventListener("click", () => this.openForm());
+
+    const addBtnTop = document.getElementById("addBtnTop");
+    if (addBtnTop) addBtnTop.addEventListener("click", () => this.openForm());
+
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    if (sidebarToggle)
+      sidebarToggle.addEventListener("click", () => UI.toggleSidebar());
 
     const adminToggleBtn = document.getElementById("adminToggleBtn");
     if (adminToggleBtn)
@@ -817,16 +1026,10 @@
     if (themeToggle)
       themeToggle.addEventListener("click", () => this.toggleTheme());
 
-    const filterToggleBtn = document.getElementById("filterToggleBtn");
-    if (filterToggleBtn)
-      filterToggleBtn.addEventListener("click", () => this.toggleFilterPanel());
-
     const sortBtn = document.getElementById("sortBtn");
     if (sortBtn)
       sortBtn.addEventListener("click", () => {
         this.sortDirection = this.sortDirection === "desc" ? "asc" : "desc";
-        document.getElementById("sortLabel").textContent =
-          this.sortDirection === "desc" ? "最新" : "最早";
         this.renderList();
       });
 
@@ -836,6 +1039,89 @@
         const modes = ["compact", "normal", "cozy"];
         const i = (modes.indexOf(this.density) + 1) % 3;
         this.setDensity(modes[i]);
+      });
+
+    // View toggle
+    const viewToggle = document.getElementById("viewToggle");
+    if (viewToggle) {
+      viewToggle.querySelectorAll(".view-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          this.listView = btn.dataset.view;
+          localStorage.setItem("kb_list_view", this.listView);
+          viewToggle.querySelectorAll(".view-btn").forEach((b) =>
+            b.classList.toggle("active", b === btn),
+          );
+          this.renderList();
+        });
+      });
+    }
+
+    // Batch mode
+    const batchToggleBtn = document.getElementById("batchToggleBtn");
+    if (batchToggleBtn)
+      batchToggleBtn.addEventListener("click", () =>
+        this.setBatchMode(!this.batchMode),
+      );
+    const batchCancelBtn = document.getElementById("batchCancelBtn");
+    if (batchCancelBtn)
+      batchCancelBtn.addEventListener("click", () => this.setBatchMode(false));
+    const batchDeleteBtn = document.getElementById("batchDeleteBtn");
+    if (batchDeleteBtn)
+      batchDeleteBtn.addEventListener("click", () => this.batchDelete());
+    const batchMoveBtn = document.getElementById("batchMoveBtn");
+    if (batchMoveBtn)
+      batchMoveBtn.addEventListener("click", () => this.batchMove());
+    const batchTagBtn = document.getElementById("batchTagBtn");
+    if (batchTagBtn)
+      batchTagBtn.addEventListener("click", () => this.batchTag());
+
+    // Detail actions
+    const detailReadBtn = document.getElementById("detailReadBtn");
+    if (detailReadBtn)
+      detailReadBtn.addEventListener("click", () => {
+        if (this.selectedEntryId) this.openReader(this.selectedEntryId);
+      });
+    const detailEditBtn = document.getElementById("detailEditBtn");
+    if (detailEditBtn)
+      detailEditBtn.addEventListener("click", () => {
+        const e = this.data.entries.find((x) => x.id === this.selectedEntryId);
+        if (e) this.openForm(e);
+      });
+    const detailDownloadBtn = document.getElementById("detailDownloadBtn");
+    if (detailDownloadBtn)
+      detailDownloadBtn.addEventListener("click", () => {
+        if (this.selectedEntryId) this.downloadEntry(this.selectedEntryId);
+      });
+    const detailDeleteBtn = document.getElementById("detailDeleteBtn");
+    if (detailDeleteBtn)
+      detailDeleteBtn.addEventListener("click", () => {
+        if (this.selectedEntryId) this.deleteEntry(this.selectedEntryId);
+      });
+
+    // Search triggers
+    const globalSearchTrigger = document.getElementById("globalSearchTrigger");
+    if (globalSearchTrigger)
+      globalSearchTrigger.addEventListener("click", () =>
+        this.openCommandPalette(""),
+      );
+    const sidebarSearchTrigger = document.getElementById("sidebarSearchTrigger");
+    if (sidebarSearchTrigger)
+      sidebarSearchTrigger.addEventListener("click", () =>
+        this.openCommandPalette(""),
+      );
+
+    // Collapse categories
+    const collapseCategories = document.getElementById("collapseCategories");
+    if (collapseCategories)
+      collapseCategories.addEventListener("click", () => {
+        const tree = document.getElementById("categoryTree");
+        const icon = collapseCategories.querySelector("i");
+        if (tree) tree.classList.toggle("collapsed");
+        if (icon) {
+          const isCollapsed = tree?.classList.contains("collapsed");
+          icon.setAttribute("data-lucide", isCollapsed ? "chevron-down" : "chevron-up");
+          if (typeof lucide !== "undefined") lucide.createIcons();
+        }
       });
 
     // Command palette
@@ -977,8 +1263,10 @@
       }
 
       if (e.key === "Escape") {
-        if (this.expandedId) {
-          this.collapseEntry();
+        if (this.selectedEntryId) {
+          this.selectedEntryId = null;
+          this.renderList();
+          this.renderDetail();
           e.preventDefault();
         } else {
           const ap = document.getElementById("adminPanel");
@@ -1172,8 +1460,11 @@
     this.saveData();
     this.closeForm();
     this.renderList();
+    this.renderSidebar();
+    this.renderDetail();
     this.renderFilterChips();
     this.updateStatus();
+    this.updateSidebarCounts();
     if (document.getElementById("adminPanel").style.display !== "none")
       ADMIN.renderTable();
   },
@@ -1197,10 +1488,14 @@
     this.rebuildMetadata();
     this.setupSearch();
     this.saveData();
+    if (this.selectedEntryId === id) {
+      this.selectedEntryId = null;
+      this.renderDetail();
+    }
     this.renderList();
+    this.renderSidebar();
     this.renderFilterChips();
     this.updateStatus();
-    if (this.expandedId === id) this.collapseEntry();
     if (this.currentReaderId === id) this.closeReader();
     if (document.getElementById("adminPanel").style.display !== "none")
       ADMIN.renderTable();
@@ -1238,6 +1533,8 @@
     else this.favorites.add(id);
     localStorage.setItem("kb_favorites", JSON.stringify([...this.favorites]));
     this.renderList();
+    this.renderDetail();
+    this.updateSidebarCounts();
   },
 
   isFavorite(id) {
