@@ -1,17 +1,24 @@
-﻿<!doctype html>
-<html lang="zh-CN">
+﻿﻿﻿﻿﻿﻿﻿<!doctype html>
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KBS — 知识库</title>
+    <title>KBS · 本地文件知识库</title>
     <link rel="stylesheet" href="css/style.css" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="alternate" type="application/rss+xml" title="KBS" href="feed.xml" />
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#005fb8" />
+    <meta name="theme-color" content="#f5f6f8" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="KBS" />
@@ -19,6 +26,11 @@
   </head>
   <body>
     <div class="app">
+      <!-- Protocol warning -->
+      <div class="protocol-warning" id="protocolWarning" style="display: none">
+        <i data-lucide="alert-triangle"></i>
+        <span>当前通过 file:// 协议直接打开，文件预览、附件下载等功能将不可用。请通过本地服务器或 GitHub Pages 访问。</span>
+      </div>
       <!-- Top Bar -->
       <header class="top-bar" role="banner">
         <div class="top-bar-left">
@@ -26,8 +38,11 @@
             <i data-lucide="panel-left"></i>
           </button>
           <div class="brand">
-            <i data-lucide="library"></i>
-            <span>KBS</span>
+            <div class="brand-mark">K</div>
+            <div class="brand-text">
+              <span class="brand-name">KBS</span>
+              <span class="brand-sub">本地文件知识库</span>
+            </div>
           </div>
         </div>
 
@@ -35,16 +50,16 @@
           <button class="search-box" id="globalSearchTrigger" aria-label="打开命令面板">
             <i data-lucide="search"></i>
             <span>搜索知识库...</span>
-            <kbd class="search-kbd">Ctrl K</kbd>
+            <kbd class="search-kbd">/</kbd>
           </button>
         </div>
 
         <div class="top-bar-right">
           <button class="icon-btn" id="themeToggle" aria-label="切换主题">
-            <i data-lucide="moon" id="themeIcon"></i>
+            <i data-lucide="sun" id="themeIcon"></i>
           </button>
           <button class="icon-btn" id="adminToggleBtn" aria-label="管理面板">
-            <i data-lucide="settings"></i>
+            <i data-lucide="settings-2"></i>
           </button>
           <button class="btn btn-primary btn-sm" id="addBtnTop">
             <i data-lucide="plus"></i>
@@ -57,15 +72,15 @@
       <div class="layout" id="layout">
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
-          <div class="sidebar-search">
-            <button class="search-box search-box-sm" id="sidebarSearchTrigger">
-              <i data-lucide="search"></i>
-              <span>搜索知识库...</span>
-              <kbd class="search-kbd">⌘K</kbd>
+          <div class="sidebar-header">
+            <button class="btn btn-primary" id="addBtn">
+              <i data-lucide="plus"></i>
+              <span>新建条目</span>
             </button>
           </div>
 
           <nav class="sidebar-section" aria-label="工作区">
+            <div class="sidebar-section-header">工作区</div>
             <div class="sidebar-item active" data-view="all">
               <i data-lucide="layout-grid"></i>
               <span>全部条目</span>
@@ -86,11 +101,16 @@
               <span>未分类</span>
               <span class="sidebar-count" id="countUncategorized">0</span>
             </div>
+            <div class="sidebar-item" data-view="recyclebin">
+              <i data-lucide="trash-2"></i>
+              <span>回收站</span>
+              <span class="sidebar-count" id="countRecycleBin">0</span>
+            </div>
           </nav>
 
           <div class="sidebar-section">
             <div class="sidebar-section-header">
-              <span>分类</span>
+              <span>分类目录</span>
               <button class="sidebar-section-action" id="collapseCategories" aria-label="折叠分类">
                 <i data-lucide="chevron-up"></i>
               </button>
@@ -99,10 +119,18 @@
           </div>
 
           <div class="sidebar-section">
-            <div class="sidebar-section-header">
-              <span>热门标签</span>
-            </div>
+            <div class="sidebar-section-header">热门标签</div>
             <div class="sidebar-tags" id="sidebarTags"></div>
+          </div>
+
+          <div class="sidebar-footer">
+            <div class="storage-bar">
+              <div class="storage-fill" id="storageFill"></div>
+            </div>
+            <div class="storage-text">
+              <span id="storageCount">0 条目</span>
+              <span>本地索引</span>
+            </div>
           </div>
         </aside>
 
@@ -110,8 +138,10 @@
         <main class="list-column" role="main">
           <div class="list-toolbar">
             <div class="list-toolbar-left">
-              <h1 class="list-title" id="listTitle">全部条目</h1>
-              <span class="list-subtitle" id="listSubtitle">共 0 条</span>
+              <div class="list-title-wrap">
+                <h1 class="list-title" id="listTitle">全部条目</h1>
+                <span class="list-subtitle" id="listSubtitle">0 条目</span>
+              </div>
               <div class="filter-chips" id="filterChips"></div>
             </div>
             <div class="list-toolbar-right">
@@ -133,26 +163,30 @@
               <button class="icon-btn" id="batchToggleBtn" title="批量编辑">
                 <i data-lucide="check-square"></i>
               </button>
-              <div class="toolbar-divider"></div>
-              <button class="btn btn-primary btn-sm" id="addBtn">
-                <i data-lucide="plus"></i>
-                <span>添加</span>
-              </button>
             </div>
           </div>
 
           <div class="batch-bar" id="batchBar" style="display: none">
-            <span class="batch-count" id="batchCount">已选择 0 项</span>
+            <div class="batch-info">
+              <span class="batch-indicator"></span>
+              <span class="batch-count" id="batchCount">已选择 0 项</span>
+            </div>
             <div class="batch-actions">
               <button class="btn btn-secondary btn-sm" id="batchMoveBtn">
-                <i data-lucide="folder-input"></i> 移动到
+                <i data-lucide="folder-input"></i> 移动
               </button>
               <button class="btn btn-secondary btn-sm" id="batchTagBtn">
-                <i data-lucide="tag"></i> 加标签
+                <i data-lucide="tag"></i> 标签
               </button>
-              <button class="btn btn-danger btn-sm" id="batchDeleteBtn">
-                <i data-lucide="trash-2"></i> 删除
-              </button>
+              <button class="btn btn-secondary btn-sm" id="batchFavBtn">
+              <i data-lucide="star"></i> 收藏
+            </button>
+            <button class="btn btn-primary btn-sm" id="batchRestoreBtn" style="display: none">
+              <i data-lucide="rotate-ccw"></i> 恢复
+            </button>
+            <button class="btn btn-danger btn-sm" id="batchDeleteBtn">
+              <i data-lucide="trash-2"></i> 删除
+            </button>
               <button class="btn btn-ghost btn-sm" id="batchCancelBtn">取消</button>
             </div>
           </div>
@@ -160,21 +194,29 @@
           <div class="list-scroll" id="listScroll">
             <div class="entry-list" id="entryList" role="list" aria-label="条目列表"></div>
             <div class="empty-state" id="emptyState" style="display: none">
-              <i data-lucide="inbox"></i>
-              <p>暂无条目</p>
-              <span>点击右上角「添加」按钮创建第一条知识</span>
+              <div class="empty-state-icon">
+                <i data-lucide="inbox"></i>
+              </div>
+              <p>知识库为空</p>
+              <span>点击「新建条目」添加第一份知识资产</span>
             </div>
+          </div>
+
+          <div class="list-status" id="listStatus">
+            <span>按 <kbd>?</kbd> 查看快捷键</span>
+            <span id="syncStatus">就绪</span>
           </div>
         </main>
 
         <!-- Detail Column -->
         <aside class="detail-column" id="detailColumn">
           <div class="detail-empty" id="detailEmpty">
-            <div class="detail-empty-icon">
+            <div class="detail-empty-visual">
+              <div class="detail-empty-ring"></div>
               <i data-lucide="book-open"></i>
             </div>
             <h2>选择一个条目开始阅读</h2>
-            <p>从左侧列表中点击任意条目查看详情</p>
+            <p>从左侧列表中点击任意条目查看详情与预览</p>
           </div>
           <div class="detail-content" id="detailContent" style="display: none">
             <div class="detail-header">
@@ -197,10 +239,10 @@
                 <button class="btn btn-ghost btn-sm" id="detailFavBtn">
                   <i data-lucide="star"></i> 收藏
                 </button>
-                <button class="btn btn-ghost btn-sm" id="detailDownloadBtn">
+                <button class="btn btn-ghost btn-sm" id="detailDownloadBtn" aria-label="下载">
                   <i data-lucide="download"></i>
                 </button>
-                <button class="btn btn-ghost btn-sm" id="detailDeleteBtn">
+                <button class="btn btn-ghost btn-sm" id="detailDeleteBtn" aria-label="删除">
                   <i data-lucide="trash-2"></i>
                 </button>
               </div>
@@ -232,11 +274,12 @@
       <div class="cmd-overlay" id="cmdOverlay"></div>
       <div class="cmd-panel">
         <div class="cmd-input-wrap">
+          <i data-lucide="terminal" class="cmd-icon"></i>
           <span class="cmd-prefix" id="cmdPrefix"></span>
           <input
             type="text"
             id="cmdInput"
-            placeholder="搜索知识库..."
+            placeholder="搜索知识库或执行命令..."
             autocomplete="off"
             spellcheck="false"
           />
@@ -244,8 +287,12 @@
         </div>
         <div class="cmd-results" id="cmdResults"></div>
         <div class="cmd-footer">
-          <span>↑↓ 导航</span><span>Enter 选择</span><span>Esc 关闭</span>
-          <span class="cmd-hint-text" id="cmdModeHint">输入 &gt; 执行命令 · @ 按标签 · # 按分类</span>
+          <div class="cmd-footer-keys">
+            <span><kbd>↑↓</kbd> 导航</span>
+            <span><kbd>Enter</kbd> 选择</span>
+            <span><kbd>Esc</kbd> 关闭</span>
+          </div>
+          <span class="cmd-hint-text" id="cmdModeHint">输入 <code>></code> 执行命令 · <code>@</code> 按标签 · <code>#</code> 按分类</span>
         </div>
       </div>
     </div>
@@ -255,7 +302,10 @@
       <div class="modal-overlay" id="formOverlay"></div>
       <div class="modal-content">
         <div class="modal-header">
-          <h2 id="formTitleText">添加文件</h2>
+          <div class="modal-title-group">
+            <span class="modal-label">数据录入</span>
+            <h2 id="formTitleText">添加文件</h2>
+          </div>
           <button class="modal-close" id="formClose">
             <i data-lucide="x"></i>
           </button>
@@ -285,10 +335,26 @@
           <div class="form-group">
             <label for="formPath">文件路径</label>
             <input type="text" id="formPath" placeholder="例如：docs/example.md" list="pathSuggestions" />
+            <input type="file" id="formFileInput" style="display: none" />
+            <div class="form-upload" id="formUpload">
+              <i data-lucide="upload-cloud"></i>
+              <span>点击或拖拽上传附件</span>
+            </div>
           </div>
           <div class="form-group">
-            <label for="formDesc">描述</label>
-            <textarea id="formDesc" rows="3" placeholder="简要描述此文件内容"></textarea>
+            <label for="formDesc">描述（支持 Markdown）</label>
+            <div class="md-editor" id="mdEditor">
+              <div class="md-editor-tabs">
+                <button type="button" class="md-tab active" data-tab="edit" id="mdTabEdit">
+                  <i data-lucide="pencil"></i> 编辑
+                </button>
+                <button type="button" class="md-tab" data-tab="preview" id="mdTabPreview">
+                  <i data-lucide="eye"></i> 预览
+                </button>
+              </div>
+              <textarea id="formDesc" rows="6" placeholder="简要描述此文件内容，支持 Markdown 语法..."></textarea>
+              <div class="md-preview" id="formDescPreview" style="display: none"></div>
+            </div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">保存</button>
@@ -300,6 +366,7 @@
 
     <!-- Fullscreen Reader -->
     <div id="reader" class="reader" style="display: none" role="dialog" aria-modal="true">
+      <div class="reader-progress" id="readerProgress"></div>
       <div class="reader-header">
         <button class="reader-back" id="readerBack">
           <i data-lucide="arrow-left"></i>
@@ -339,24 +406,30 @@
       <div class="admin-panel-inner">
         <div class="admin-header">
           <div class="admin-header-left">
+            <span class="admin-label">系统管理</span>
             <h2>管理面板</h2>
-            <span class="admin-subtitle">管理知识库数据与部署</span>
           </div>
           <div class="admin-actions">
             <button class="btn btn-primary" id="deployBtn">
               <i data-lucide="rocket"></i> 部署到 GitHub
             </button>
             <button class="btn btn-secondary" id="exportBtn">
-              <i data-lucide="download"></i> 导出 JSON
+              <i data-lucide="download"></i> 导出
             </button>
             <button class="btn btn-secondary" id="importBtn">
-              <i data-lucide="upload"></i> 导入 JSON
+              <i data-lucide="upload"></i> 导入
+            </button>
+            <button class="btn btn-secondary" id="checkFilesBtn">
+              <i data-lucide="shield-check"></i> 检查文件
+            </button>
+            <button class="btn btn-secondary" id="manageTagsBtn">
+              <i data-lucide="tags"></i> 标签
+            </button>
+            <button class="btn btn-secondary" id="manageCatsBtn">
+              <i data-lucide="folder-tree"></i> 分类
             </button>
             <button class="btn btn-ghost" id="checkUpdateBtn">
-              <i data-lucide="refresh-cw"></i> 检查更新
-            </button>
-            <button class="btn btn-secondary" id="resetFromServerBtn">
-              <i data-lucide="rotate-ccw"></i> 重置为服务端
+              <i data-lucide="refresh-cw"></i>
             </button>
             <button class="btn btn-ghost" id="closeAdmin">
               <i data-lucide="x"></i>
@@ -364,6 +437,7 @@
           </div>
         </div>
         <div id="statsContainer" class="stats-container"></div>
+        <div class="admin-history" id="adminHistory"></div>
         <div class="admin-table-wrapper">
           <table class="admin-table" id="adminTable">
             <thead>
@@ -380,6 +454,71 @@
             </thead>
             <tbody id="adminTableBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata Manager Modal -->
+    <div id="metadataModal" class="modal" style="display: none" role="dialog" aria-modal="true">
+      <div class="modal-overlay" id="metadataOverlay"></div>
+      <div class="modal-content" style="width: 560px">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-label">数据治理</span>
+            <h2 id="metadataTitle">标签管理</h2>
+          </div>
+          <button class="modal-close" id="metadataClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="metadata-toolbar" id="metadataToolbar"></div>
+        <div class="metadata-list" id="metadataList"></div>
+      </div>
+    </div>
+
+    <!-- Import / Export Modal -->
+    <div id="ioModal" class="modal" style="display: none" role="dialog" aria-modal="true">
+      <div class="modal-overlay" id="ioOverlay"></div>
+      <div class="modal-content" style="width: 480px">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-label">数据迁移</span>
+            <h2>导入 / 导出</h2>
+          </div>
+          <button class="modal-close" id="ioClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="io-section">
+          <h3>导出</h3>
+          <div class="io-buttons">
+            <button class="btn btn-secondary" id="ioExportJson">
+              <i data-lucide="download"></i> JSON
+            </button>
+            <button class="btn btn-secondary" id="ioExportCsv">
+              <i data-lucide="file-spreadsheet"></i> CSV
+            </button>
+            <button class="btn btn-secondary" id="ioExportMd">
+              <i data-lucide="archive"></i> Markdown 包
+            </button>
+          </div>
+        </div>
+        <div class="io-section">
+          <h3>导入</h3>
+          <div class="io-buttons">
+            <button class="btn btn-secondary" id="ioImportJson">
+              <i data-lucide="upload"></i> JSON
+            </button>
+            <button class="btn btn-secondary" id="ioImportCsv">
+              <i data-lucide="file-spreadsheet"></i> CSV
+            </button>
+            <button class="btn btn-secondary" id="ioImportMd">
+              <i data-lucide="folder-open"></i> Markdown 文件夹
+            </button>
+          </div>
+          <input type="file" id="ioImportJsonInput" accept=".json" style="display: none" />
+          <input type="file" id="ioImportCsvInput" accept=".csv" style="display: none" />
+          <input type="file" id="ioImportMdInput" webkitdirectory directory multiple style="display: none" />
         </div>
       </div>
     </div>

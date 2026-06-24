@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>本地文件知识库</title>
+    <title>KBS · 本地文件知识库</title>
     <link>https://houxixi.ccwu.cc/</link>
-    <description>通过 GitHub Pages 分享的本地文件知识库</description>
+    <description>结构化整理本地文件，构建可搜索、可分享的在线知识库</description>
     <language>zh-CN</language>
     <lastBuildDate>Mon, 22 Jun 2026 04:55:48 +0000</lastBuildDate>
     <generator>KKnowledge Base RSS Generator</generator>

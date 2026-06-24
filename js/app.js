@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿const APP = {
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿const APP = {
   STORAGE_KEY: "knowledgeBaseData",
   data: null,
   categories: new Set(),
@@ -18,15 +18,22 @@
   serverUpdate: null,
   density: localStorage.getItem("kb_density") || "normal",
   selectedEntryId: null,
+  focusedEntryId: null,
   currentReaderId: null,
   currentSidebarView: "all",
+  _filteredEntries: null,
+  _cmdFilterTimer: null,
   cmdHighlight: -1,
   apiMode: false,
   batchMode: false,
   listView: localStorage.getItem("kb_list_view") || "list",
+  metadataType: "tag",
 
   async init() {
     this.registerSW();
+    this.detectFileProtocol();
+    const list = document.getElementById("entryList");
+    if (list) Skeleton.show(list, this.listView);
     this.apiMode = await API.check();
     if (this.apiMode) {
       console.log("API 模式已启用：数据通过本地后端服务持久化");
@@ -54,6 +61,7 @@
     if (this.apiMode) {
       try {
         this.data = await API.listEntries();
+        if (!this.data.deletedEntries) this.data.deletedEntries = [];
         this.rebuildMetadata();
         this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
         this.saveData();
@@ -70,6 +78,7 @@
     if (stored) {
       try {
         this.data = JSON.parse(stored);
+        if (!this.data.deletedEntries) this.data.deletedEntries = [];
         this.rebuildMetadata();
         this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
         this.checkServerUpdate();
@@ -82,12 +91,13 @@
       const resp = await fetch("data/index.json?v=" + Date.now());
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       this.data = await resp.json();
+      if (!this.data.deletedEntries) this.data.deletedEntries = [];
       this.rebuildMetadata();
       this.nextId = Math.max(...this.data.entries.map((e) => e.id), 0) + 1;
       this.saveData();
     } catch (err) {
       console.error("Failed to load data:", err);
-      this.data = { version: "1.0.0", siteTitle: "知识库", entries: [] };
+      this.data = { version: "1.0.0", siteTitle: "知识库", entries: [], deletedEntries: [] };
       this.rebuildMetadata();
     }
   },
@@ -128,17 +138,57 @@
       },
     });
     this.data.entries.forEach((e) => {
-      this.searchIndex.add({
-        id: e.id,
-        title: e.title,
-        description: e.description || "",
-        tags: e.tags.join(" "),
-        category: e.category,
-      });
+      this.addToSearchIndex(e);
     });
   },
 
+  addToSearchIndex(entry) {
+    if (!this.searchIndex || !entry) return;
+    try {
+      this.searchIndex.add({
+        id: entry.id,
+        title: entry.title,
+        description: entry.description || "",
+        tags: entry.tags.join(" "),
+        category: entry.category,
+      });
+    } catch (err) {
+      // MiniSearch 可能已存在该 id，忽略或重新添加
+      console.warn("addToSearchIndex failed:", err);
+    }
+  },
+
+  updateSearchIndex(entry) {
+    if (!this.searchIndex || !entry) return;
+    try {
+      this.searchIndex.discard(entry.id);
+    } catch {}
+    this.addToSearchIndex(entry);
+  },
+
+  removeFromSearchIndex(id) {
+    if (!this.searchIndex) return;
+    try {
+      this.searchIndex.discard(id);
+    } catch {}
+  },
+
+  invalidateFilteredEntries() {
+    this._filteredEntries = null;
+  },
+
   getFilteredEntries() {
+    if (this._filteredEntries) return this._filteredEntries;
+
+    if (this.currentSidebarView === "recyclebin") {
+      let entries = [...(this.data.deletedEntries || [])];
+      if (this.sortField === "createdAt")
+        entries = Sorter.sortByDate(entries, this.sortDirection === "asc");
+      else if (this.sortField === "title")
+        entries = Sorter.sortByTitle(entries, this.sortDirection === "asc");
+      this._filteredEntries = entries;
+      return entries;
+    }
     let entries = [...this.data.entries];
     if (this.showFavoritesOnly)
       entries = entries.filter((e) => this.favorites.has(e.id));
@@ -164,71 +214,126 @@
       entries = Sorter.sortByDate(entries, this.sortDirection === "asc");
     else if (this.sortField === "title")
       entries = Sorter.sortByTitle(entries, this.sortDirection === "asc");
+    this._filteredEntries = entries;
     return entries;
   },
 
   // ─── Rendering ───
 
   renderList() {
+    this.invalidateFilteredEntries();
     const list = document.getElementById("entryList");
     const empty = document.getElementById("emptyState");
     const entries = this.getFilteredEntries();
 
     if (entries.length === 0) {
       list.innerHTML = "";
-      if (empty) empty.style.display = "flex";
+      if (empty) {
+        empty.style.display = "flex";
+        empty.innerHTML = this.getEmptyState();
+      }
     } else {
       if (empty) empty.style.display = "none";
       list.className =
         "entry-list" + (this.listView === "grid" ? " grid-view" : "");
       list.innerHTML = entries.map((e) => this.renderEntryRow(e)).join("");
-      list.querySelectorAll(".entry-row").forEach((row) => {
-        const id = parseInt(row.dataset.id);
-        const checkbox = row.querySelector('.entry-checkbox input[type="checkbox"]');
-        if (checkbox) {
-          checkbox.checked = this.selectedIds.has(id);
-          checkbox.addEventListener("change", (ev) => {
-            ev.stopPropagation();
-            this.toggleSelection(id);
-          });
-        }
-        row.addEventListener("click", (ev) => {
-          if (
-            ev.target.closest(".entry-fav") ||
-            ev.target.closest(".entry-checkbox") ||
-            ev.target.closest(".entry-actions")
-          )
-            return;
-          if (this.batchMode) {
-            this.toggleSelection(id);
-            return;
-          }
-          this.selectEntry(id);
-        });
-        row.addEventListener("mouseenter", (ev) => {
-          if (this.batchMode) return;
-          const rect = row.getBoundingClientRect();
-          this.showToolbox(rect.right - 220, rect.top + 6, id);
-        });
-        row.addEventListener("mouseleave", () => {
-          setTimeout(() => {
-            if (!document.querySelector(".toolbox:hover")) this.hideToolbox();
-          }, 150);
-        });
+      list.querySelectorAll('.entry-checkbox input[type="checkbox"]').forEach((cb) => {
+        cb.checked = this.selectedIds.has(parseInt(cb.dataset.id));
       });
+      if (this.focusedEntryId) {
+        const focusedRow = list.querySelector(`.entry-row[data-id="${this.focusedEntryId}"]`);
+        if (focusedRow) focusedRow.classList.add("focused");
+      }
     }
     this.updateStatus();
     this.updateListTitle();
     this.updateSidebarCounts();
     this.updateUrlState();
     if (typeof lucide !== "undefined") lucide.createIcons();
+    Skeleton.hide(list);
+  },
+
+  getEmptyState() {
+    const configs = {
+      recyclebin: {
+        icon: "trash-2",
+        title: "回收站为空",
+        hint: "删除的条目会出现在这里，30 天后自动清理。",
+        action: null,
+      },
+      favorites: {
+        icon: "star",
+        title: "暂无收藏",
+        hint: "点击条目右侧的星标，将常用文件加入收藏。",
+        action: null,
+      },
+      recent: {
+        icon: "clock",
+        title: "最近阅读为空",
+        hint: "打开任意条目后，最近阅读列表会显示在这里。",
+        action: null,
+      },
+      uncategorized: {
+        icon: "folder-x",
+        title: "所有条目已分类",
+        hint: "当前没有未分类的条目。",
+        action: null,
+      },
+    };
+
+    let cfg = configs[this.currentSidebarView] || {
+      icon: "file-x",
+      title: "暂无条目",
+      hint: "点击左上角「添加文件」开始构建知识库。",
+      action: `<button class="btn btn-primary" onclick="APP.openForm()"><i data-lucide="plus"></i> 添加文件</button>`,
+    };
+
+    if (this.searchQuery) {
+      cfg = {
+        icon: "search-x",
+        title: "未找到匹配结果",
+        hint: `没有与 "${this.escapeHtml(this.searchQuery)}" 匹配的条目，试试其他关键词。`,
+        action: `<button class="btn btn-secondary" onclick="APP.clearSearch()"><i data-lucide="x"></i> 清除搜索</button>`,
+      };
+    } else if (this.activeCategory) {
+      cfg = {
+        icon: "folder-open",
+        title: this.escapeHtml(this.activeCategory),
+        hint: "该分类下暂时没有条目。",
+        action: `<button class="btn btn-secondary" onclick="APP.activeCategory=null;APP.renderSidebar();APP.renderList();APP.renderFilterChips();"><i data-lucide="arrow-left"></i> 查看全部</button>`,
+      };
+    } else if (this.activeTag) {
+      cfg = {
+        icon: "hash",
+        title: "#" + this.escapeHtml(this.activeTag),
+        hint: "该标签下暂时没有条目。",
+        action: `<button class="btn btn-secondary" onclick="APP.activeTag=null;APP.renderSidebar();APP.renderList();APP.renderFilterChips();"><i data-lucide="arrow-left"></i> 查看全部</button>`,
+      };
+    }
+
+    const actionHtml = cfg.action ? `<div class="empty-state-action">${cfg.action}</div>` : "";
+    return `
+      <div class="empty-state-icon"><i data-lucide="${cfg.icon}"></i></div>
+      <p>${cfg.title}</p>
+      <span>${cfg.hint}</span>
+      ${actionHtml}
+    `;
+  },
+
+  clearSearch() {
+    this.searchQuery = "";
+    this.renderList();
+    this.renderFilterChips();
+    this.updateStatus();
   },
 
   selectEntry(id) {
     this.selectedEntryId = id;
+    this.focusedEntryId = id;
     UI.addRecentId(id);
     this.renderList();
     this.renderDetail();
+    UI.openDetailPanel();
     if (window.innerWidth <= 768) UI.showMobileTab("detail");
   },
 
@@ -236,61 +341,80 @@
     const isFav = this.favorites.has(entry.id);
     const isSelected = this.selectedEntryId === entry.id;
     const isBatchSelected = this.selectedIds.has(entry.id);
+    const isRecycle = this.currentSidebarView === "recyclebin";
     const icon = this.getLucideIcon(FileType.detect(entry.path));
     const cat = this.escapeHtml(entry.category);
     const date = entry.createdAt || "";
+    const deletedAt = entry.deletedAt || "";
     const title = this.highlightText(entry.title);
     const desc = this.highlightText(entry.description || "");
     const tags = entry.tags
       .map((t) => `<span class="entry-tag">#${this.highlightText(t)}</span>`)
       .join("");
     const checkbox = `<label class="entry-checkbox" onclick="event.stopPropagation()"><input type="checkbox" data-id="${entry.id}"></label>`;
+    const favIcon = isFav
+      ? `<i data-lucide="star" style="fill:var(--accent-amber);color:var(--accent-amber);"></i>`
+      : `<i data-lucide="star"></i>`;
+    const actionBtn = isRecycle
+      ? `<button class="entry-action-btn" data-action="restore" data-id="${entry.id}" title="恢复"><i data-lucide="rotate-ccw"></i></button><button class="entry-action-btn entry-action-danger" data-action="permanent-delete" data-id="${entry.id}" title="永久删除"><i data-lucide="trash-2"></i></button>`
+      : `<button class="entry-fav ${isFav ? "favorited" : ""}" data-action="favorite" data-id="${entry.id}">${favIcon}</button>`;
 
     let cls = `entry-row density-${this.density}`;
     if (isSelected) cls += " active";
     if (isBatchSelected) cls += " batch-selected";
+    if (isRecycle) cls += " recycle-row";
+
+    const metaDate = isRecycle
+      ? `<span class="entry-deleted-at" title="删除时间">${deletedAt.slice(0, 10)}</span>`
+      : `<span class="entry-date">${date}</span>`;
 
     if (this.density === "compact") {
       return `<div class="${cls}" data-id="${entry.id}" role="listitem">
         ${checkbox}
+        <i data-lucide="${icon}" class="entry-icon"></i>
         <div class="entry-main">
-          <i data-lucide="${icon}" class="entry-icon"></i>
-          <span class="entry-title">${title}</span>
-          <span class="entry-category">${cat}</span>
-          <span class="entry-date">${date}</span>
-          <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
+          <div class="entry-top">
+            <span class="entry-title">${title}</span>
+            <span class="entry-category">${cat}</span>
+          </div>
         </div>
+        <span class="entry-meta" style="margin-right:8px;">${metaDate}</span>
+        <div class="entry-actions">${actionBtn}</div>
       </div>`;
     }
     if (this.density === "cozy") {
       return `<div class="${cls}" data-id="${entry.id}" role="listitem">
         ${checkbox}
+        <i data-lucide="${icon}" class="entry-icon"></i>
         <div class="entry-main">
           <div class="entry-top">
-            <i data-lucide="${icon}" class="entry-icon"></i>
             <span class="entry-title">${title}</span>
             <span class="entry-category">${cat}</span>
           </div>
           <div class="entry-desc">${desc || "暂无描述"}</div>
           <div class="entry-bottom">
             <div class="entry-tags">${tags}</div>
-            <span class="entry-date">${date}</span>
-            <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
+            ${metaDate}
           </div>
         </div>
+        <div class="entry-actions">${actionBtn}</div>
       </div>`;
     }
     // default: normal
     return `<div class="${cls}" data-id="${entry.id}" role="listitem">
       ${checkbox}
+      <i data-lucide="${icon}" class="entry-icon"></i>
       <div class="entry-main">
-        <i data-lucide="${icon}" class="entry-icon"></i>
-        <span class="entry-title">${title}</span>
-        <span class="entry-category">${cat}</span>
-        <div class="entry-tags">${tags}</div>
-        <span class="entry-date">${date}</span>
-        <button class="entry-fav ${isFav ? "favorited" : ""}" onclick="event.stopPropagation();APP.toggleFavorite(${entry.id})">${isFav ? "★" : "☆"}</button>
+        <div class="entry-top">
+          <span class="entry-title">${title}</span>
+          <span class="entry-category">${cat}</span>
+        </div>
+        <div class="entry-bottom">
+          <div class="entry-tags">${tags}</div>
+          ${metaDate}
+        </div>
       </div>
+      <div class="entry-actions">${actionBtn}</div>
     </div>`;
   },
 
@@ -320,14 +444,20 @@
       .join(" ");
     document.getElementById("detailDate").textContent = entry.createdAt || "-";
     document.getElementById("detailTitle").textContent = entry.title;
-    document.getElementById("detailDesc").textContent =
-      entry.description || "暂无描述";
+    const detailDesc = document.getElementById("detailDesc");
+    if (detailDesc) {
+      detailDesc.innerHTML =
+        entry.description && typeof marked !== "undefined"
+          ? marked.parse(entry.description)
+          : this.escapeHtml(entry.description || "暂无描述");
+    }
 
     const favBtn = document.getElementById("detailFavBtn");
     if (favBtn) {
       favBtn.innerHTML = isFav
-        ? '<i data-lucide="star" style="fill:var(--warning);color:var(--warning);"></i> 已收藏'
+        ? '<i data-lucide="star" style="fill:var(--accent-amber);color:var(--accent-amber);"></i> 已收藏'
         : '<i data-lucide="star"></i> 收藏';
+      favBtn.classList.toggle("favorited", isFav);
       favBtn.onclick = () => this.toggleFavorite(entry.id);
     }
 
@@ -362,8 +492,13 @@
               : "<pre>" + this.escapeHtml(t) + "</pre>";
         })
         .catch(() => {
+          const isFileProtocol = window.location.protocol === "file:";
           el.innerHTML =
-            '<p style="color:var(--text-tertiary);font-size:13px;">文件不存在或无法加载</p>';
+            '<p style="color:var(--text-tertiary);font-size:13px;">' +
+            (isFileProtocol
+              ? 'file:// 协议无法加载文件，请通过本地服务器访问'
+              : '文件不存在或无法加载') +
+            '</p>';
         });
     } else if (ft === "image") {
       el.innerHTML =
@@ -407,17 +542,6 @@
             </div>`,
         )
         .join("");
-      categoryTree.querySelectorAll(".tree-item").forEach((el) => {
-        el.addEventListener("click", () => {
-          const cat = el.dataset.cat;
-          this.activeCategory = this.activeCategory === cat ? null : cat;
-          this.searchQuery = "";
-          this.renderSidebar();
-          this.renderList();
-          this.renderFilterChips();
-          this.updateStatus();
-        });
-      });
     }
     if (sidebarTags) {
       const tags = [...this.tags].sort().slice(0, 20);
@@ -427,32 +551,11 @@
             `<span class="tag-pill ${this.activeTag === t ? "active" : ""}" data-tag="${this.escapeHtml(t)}">#${this.escapeHtml(t)}</span>`,
         )
         .join("");
-      sidebarTags.querySelectorAll(".tag-pill").forEach((el) => {
-        el.addEventListener("click", () => {
-          const tag = el.dataset.tag;
-          this.activeTag = this.activeTag === tag ? null : tag;
-          this.searchQuery = "";
-          this.renderSidebar();
-          this.renderList();
-          this.renderFilterChips();
-          this.updateStatus();
-        });
-      });
+
     }
 
     document.querySelectorAll(".sidebar-item[data-view]").forEach((el) => {
       el.classList.toggle("active", el.dataset.view === this.currentSidebarView);
-      el.addEventListener("click", () => {
-        this.currentSidebarView = el.dataset.view;
-        this.showFavoritesOnly = el.dataset.view === "favorites";
-        this.activeCategory = null;
-        this.activeTag = null;
-        this.searchQuery = "";
-        this.renderSidebar();
-        this.renderList();
-        this.renderFilterChips();
-        this.updateStatus();
-      });
     });
 
     if (typeof lucide !== "undefined") lucide.createIcons();
@@ -466,6 +569,7 @@
     const uncategorizedCount = this.data.entries.filter(
       (e) => !e.category || e.category === "未分类",
     ).length;
+    const recycleCount = (this.data.deletedEntries || []).length;
 
     const setCount = (id, count) => {
       const el = document.getElementById(id);
@@ -475,6 +579,15 @@
     setCount("countRecent", recentCount);
     setCount("countFavorites", favCount);
     setCount("countUncategorized", uncategorizedCount);
+    setCount("countRecycleBin", recycleCount);
+
+    const storageCount = document.getElementById("storageCount");
+    if (storageCount) storageCount.textContent = `${total} 条目`;
+    const storageFill = document.getElementById("storageFill");
+    if (storageFill) {
+      const max = Math.max(total, 100);
+      storageFill.style.width = `${Math.min((total / max) * 100, 100)}%`;
+    }
   },
 
   updateListTitle() {
@@ -485,6 +598,7 @@
       recent: "最近阅读",
       favorites: "我的收藏",
       uncategorized: "未分类",
+      recyclebin: "回收站",
     };
     if (this.activeCategory) {
       title.textContent = this.activeCategory;
@@ -502,58 +616,116 @@
   toggleSelection(id) {
     if (this.selectedIds.has(id)) this.selectedIds.delete(id);
     else this.selectedIds.add(id);
-    this.renderList();
+
+    const row = document.querySelector(`.entry-row[data-id="${id}"]`);
+    if (row) {
+      row.classList.toggle("batch-selected", this.selectedIds.has(id));
+      const cb = row.querySelector('.entry-checkbox input[type="checkbox"]');
+      if (cb) cb.checked = this.selectedIds.has(id);
+    }
+
     this.updateBatchBar();
   },
 
-  setBatchMode(enabled) {
+  setBatchMode(enabled, { skipRender = false } = {}) {
     this.batchMode = enabled;
     this.selectedIds.clear();
     document.body.classList.toggle("batch-mode", enabled);
     const bar = document.getElementById("batchBar");
     if (bar) bar.style.display = enabled ? "flex" : "none";
-    this.renderList();
     this.updateBatchBar();
+    if (!skipRender) this.renderList();
   },
 
   updateBatchBar() {
     const count = document.getElementById("batchCount");
     if (count) count.textContent = `已选择 ${this.selectedIds.size} 项`;
+    const isRecycle = this.currentSidebarView === "recyclebin";
+    const setDisplay = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = val;
+    };
+    setDisplay("batchMoveBtn", isRecycle ? "none" : "inline-flex");
+    setDisplay("batchTagBtn", isRecycle ? "none" : "inline-flex");
+    setDisplay("batchFavBtn", isRecycle ? "none" : "inline-flex");
+    setDisplay("batchRestoreBtn", isRecycle ? "inline-flex" : "none");
+    const delBtn = document.getElementById("batchDeleteBtn");
+    if (delBtn)
+      delBtn.innerHTML = isRecycle
+        ? '<i data-lucide="trash-2"></i> 永久删除'
+        : '<i data-lucide="trash-2"></i> 删除';
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
   async batchDelete() {
     if (this.selectedIds.size === 0) return;
+    const isRecycle = this.currentSidebarView === "recyclebin";
+    const batchCount = this.selectedIds.size;
     const ok = await ConfirmDialog.show(
-      `确定删除选中的 ${this.selectedIds.size} 项吗？`,
+      isRecycle
+        ? `确定永久删除选中的 ${batchCount} 项吗？此操作不可撤销。`
+        : `确定删除选中的 ${batchCount} 项吗？删除后可从回收站恢复。`,
     );
     if (!ok) return;
+    if (isRecycle) {
+      this.data.deletedEntries = (this.data.deletedEntries || []).filter(
+        (e) => !this.selectedIds.has(e.id),
+      );
+    } else {
+      for (const id of [...this.selectedIds]) {
+        const entry = this.data.entries.find((e) => e.id === id);
+        if (!entry) continue;
+        if (this.apiMode) {
+          try {
+            await API.deleteEntry(id);
+          } catch (err) {
+            console.error("API delete failed:", err);
+          }
+        }
+        this.data.entries = this.data.entries.filter((e) => e.id !== id);
+        entry.deletedAt = new Date().toISOString();
+        if (!this.data.deletedEntries) this.data.deletedEntries = [];
+        this.data.deletedEntries.push(entry);
+      }
+    }
+    this.setBatchMode(false, { skipRender: true });
+    this.refreshAfterDataChange({
+      message: isRecycle ? "已永久删除" : "已移至回收站",
+    });
+    History.log(isRecycle ? "批量永久删除" : "批量删除", `${batchCount} 项`);
+  },
+
+  async batchRestore() {
+    if (this.selectedIds.size === 0) return;
+    const batchCount = this.selectedIds.size;
     for (const id of [...this.selectedIds]) {
+      const idx = (this.data.deletedEntries || []).findIndex((e) => e.id === id);
+      if (idx === -1) continue;
+      const entry = this.data.deletedEntries[idx];
+      const existingId = this.data.entries.find((e) => e.id === id);
+      if (existingId) entry.id = this.nextId++;
+      delete entry.deletedAt;
       if (this.apiMode) {
         try {
-          await API.deleteEntry(id);
+          const created = await API.createEntry(entry);
+          this.data.entries.push(created);
+          this.data.deletedEntries.splice(idx, 1);
         } catch (err) {
-          console.error("API delete failed:", err);
+          console.error("API restore failed:", err);
         }
+      } else {
+        this.data.entries.push(entry);
+        this.data.deletedEntries.splice(idx, 1);
       }
-      this.data.entries = this.data.entries.filter((e) => e.id !== id);
     }
-    this.selectedIds.clear();
-    this.setBatchMode(false);
-    this.rebuildMetadata();
-    this.setupSearch();
-    this.saveData();
-    this.renderList();
-    this.renderSidebar();
-    this.renderDetail();
-    this.renderFilterChips();
-    this.updateStatus();
-    if (document.getElementById("adminPanel").style.display !== "none")
-      ADMIN.renderTable();
-    Toast.success("批量删除成功");
+    this.setBatchMode(false, { skipRender: true });
+    this.refreshAfterDataChange({ message: "批量恢复成功" });
+    History.log("批量恢复", `${batchCount} 项`);
   },
 
   async batchMove() {
     if (this.selectedIds.size === 0) return;
+    const batchCount = this.selectedIds.size;
     const cats = [...this.categories].sort();
     const cat = await PromptDialog.show(
       "移动到分类",
@@ -573,22 +745,14 @@
         }
       }
     }
-    this.selectedIds.clear();
-    this.setBatchMode(false);
-    this.rebuildMetadata();
-    this.setupSearch();
-    this.saveData();
-    this.renderList();
-    this.renderSidebar();
-    this.renderFilterChips();
-    this.updateStatus();
-    if (document.getElementById("adminPanel").style.display !== "none")
-      ADMIN.renderTable();
-    Toast.success("批量移动成功");
+    this.setBatchMode(false, { skipRender: true });
+    this.refreshAfterDataChange({ message: "批量移动成功" });
+    History.log("批量移动", `${batchCount} 项 → ${cat}`);
   },
 
   async batchTag() {
     if (this.selectedIds.size === 0) return;
+    const batchCount = this.selectedIds.size;
     const tag = await PromptDialog.show(
       "添加标签",
       "请输入要添加的标签（多个用逗号分隔）",
@@ -608,18 +772,186 @@
         }
       }
     }
+    this.setBatchMode(false, { skipRender: true });
+    this.refreshAfterDataChange({ message: "批量加标签成功" });
+    History.log("批量加标签", `${batchCount} 项 → ${newTags.join(", ")}`);
+  },
+
+  async batchFavorite() {
+    if (this.selectedIds.size === 0) return;
+    const batchCount = this.selectedIds.size;
+    const allFav = [...this.selectedIds].every((id) => this.favorites.has(id));
+    for (const id of [...this.selectedIds]) {
+      if (allFav) this.favorites.delete(id);
+      else this.favorites.add(id);
+    }
+    localStorage.setItem("kb_favorites", JSON.stringify([...this.favorites]));
     this.selectedIds.clear();
     this.setBatchMode(false);
-    this.rebuildMetadata();
-    this.setupSearch();
-    this.saveData();
     this.renderList();
-    this.renderSidebar();
-    this.renderFilterChips();
-    this.updateStatus();
-    if (document.getElementById("adminPanel").style.display !== "none")
-      ADMIN.renderTable();
-    Toast.success("批量加标签成功");
+    this.renderDetail();
+    this.updateSidebarCounts();
+    Toast.success(allFav ? "已取消收藏" : "已批量收藏");
+    History.log(allFav ? "批量取消收藏" : "批量收藏", `${batchCount} 项`);
+  },
+
+  // ─── Metadata Manager ───
+
+  openMetadataManager(type) {
+    this.metadataType = type;
+    document.getElementById("metadataTitle").textContent =
+      type === "tag" ? "标签管理" : "分类管理";
+    document.getElementById("metadataModal").style.display = "flex";
+    this.renderMetadataList();
+  },
+
+  closeMetadataManager() {
+    document.getElementById("metadataModal").style.display = "none";
+  },
+
+  renderMetadataList() {
+    const list = document.getElementById("metadataList");
+    const toolbar = document.getElementById("metadataToolbar");
+    const isTag = this.metadataType === "tag";
+    toolbar.innerHTML = isTag
+      ? `<button class="btn btn-secondary btn-sm" id="cleanUnusedTagsBtn"><i data-lucide="broom"></i> 清理未使用标签</button>`
+      : "";
+
+    const items = isTag
+      ? [...this.tags].sort()
+      : [...this.categories].sort();
+    if (items.length === 0) {
+      list.innerHTML = `<div class="metadata-empty">暂无${isTag ? "标签" : "分类"}</div>`;
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      return;
+    }
+
+    list.innerHTML = items
+      .map((item) => {
+        const count = isTag
+          ? this.data.entries.filter((e) => e.tags.includes(item)).length
+          : this.data.entries.filter((e) => e.category === item).length;
+        return `
+        <div class="metadata-item" data-name="${this.escapeHtml(item)}">
+          <div class="metadata-info">
+            <span class="metadata-name">${this.escapeHtml(item)}</span>
+            <span class="metadata-count">${count} 条</span>
+          </div>
+          <div class="metadata-actions">
+            <button class="btn btn-ghost btn-sm" data-action="rename">重命名</button>
+            <button class="btn btn-ghost btn-sm" data-action="merge">合并</button>
+            <button class="btn btn-danger btn-sm" data-action="delete">删除</button>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  },
+
+  async renameMetadata(name) {
+    const isTag = this.metadataType === "tag";
+    const newName = await PromptDialog.show(
+      `重命名${isTag ? "标签" : "分类"}`,
+      `将 "${name}" 重命名为：`,
+    );
+    if (!newName || newName === name) return;
+    let changed = 0;
+    this.data.entries.forEach((e) => {
+      if (isTag) {
+        const idx = e.tags.indexOf(name);
+        if (idx !== -1) {
+          e.tags[idx] = newName;
+          changed++;
+        }
+      } else if (e.category === name) {
+        e.category = newName;
+        changed++;
+      }
+    });
+    if (changed === 0) return;
+    await this.persistMetadataChanges(
+      `${isTag ? "标签" : "分类"}重命名成功`,
+    );
+  },
+
+  async mergeMetadata(name) {
+    const isTag = this.metadataType === "tag";
+    const candidates = isTag
+      ? [...this.tags].filter((t) => t !== name).sort()
+      : [...this.categories].filter((c) => c !== name).sort();
+    if (candidates.length === 0) {
+      Toast.warning("没有其他可合并目标");
+      return;
+    }
+    const target = await PromptDialog.show(
+      `合并${isTag ? "标签" : "分类"}`,
+      `将 "${name}" 合并到：`,
+      candidates,
+    );
+    if (!target || target === name) return;
+    this.data.entries.forEach((e) => {
+      if (isTag) {
+        if (e.tags.includes(name)) {
+          e.tags = e.tags.filter((t) => t !== name);
+          if (!e.tags.includes(target)) e.tags.push(target);
+        }
+      } else if (e.category === name) {
+        e.category = target;
+      }
+    });
+    await this.persistMetadataChanges(`${isTag ? "标签" : "分类"}合并成功`);
+  },
+
+  async deleteMetadata(name) {
+    const isTag = this.metadataType === "tag";
+    const count = isTag
+      ? this.data.entries.filter((e) => e.tags.includes(name)).length
+      : this.data.entries.filter((e) => e.category === name).length;
+    const ok = await ConfirmDialog.show(
+      isTag
+        ? `确定删除标签 "${name}" 吗？将影响 ${count} 条条目。`
+        : `确定删除分类 "${name}" 吗？${count} 条条目将变为「未分类」。`,
+    );
+    if (!ok) return;
+    this.data.entries.forEach((e) => {
+      if (isTag) e.tags = e.tags.filter((t) => t !== name);
+      else if (e.category === name) e.category = "未分类";
+    });
+    await this.persistMetadataChanges(`${isTag ? "标签" : "分类"}删除成功`);
+  },
+
+  async cleanUnusedTags() {
+    const used = new Set();
+    this.data.entries.forEach((e) => e.tags.forEach((t) => used.add(t)));
+    const unused = [...this.tags].filter((t) => !used.has(t));
+    if (unused.length === 0) {
+      Toast.info("没有未使用的标签");
+      return;
+    }
+    const ok = await ConfirmDialog.show(
+      `确定清理 ${unused.length} 个未使用标签吗？`,
+    );
+    if (!ok) return;
+    this.data.entries.forEach((e) => {
+      e.tags = e.tags.filter((t) => !unused.includes(t));
+    });
+    await this.persistMetadataChanges("已清理未使用标签");
+  },
+
+  async persistMetadataChanges(message) {
+    History.log("数据治理", message);
+    if (this.apiMode) {
+      for (const entry of this.data.entries) {
+        try {
+          await API.updateEntry(entry.id, entry);
+        } catch (err) {
+          console.error("API update failed:", err);
+        }
+      }
+    }
+    this.refreshAfterDataChange({ message });
+    this.renderMetadataList();
   },
 
   // ─── Fullscreen Reader ───
@@ -637,13 +969,19 @@
       .join(" ");
     document.getElementById("readerDate").textContent = entry.createdAt || "-";
     document.getElementById("readerFavBtn").innerHTML = this.isFavorite(id)
-      ? '<i data-lucide="star" style="fill:var(--accent);color:var(--accent);"></i>'
+      ? '<i data-lucide="star" style="fill:var(--accent-amber);color:var(--accent-amber);"></i>'
       : '<i data-lucide="star"></i>';
     document.getElementById("readerTitle").textContent = entry.title;
     document.getElementById("readerContent").innerHTML =
       '<div class="loading-spinner"><div class="spinner"></div></div>';
 
     const ft = FileType.detect(entry.path);
+    const renderDesc = () => {
+      document.getElementById("readerContent").innerHTML =
+        entry.description && typeof marked !== "undefined"
+          ? marked.parse(entry.description)
+          : this.escapeHtml(entry.description || "暂无描述");
+    };
     if (entry.path && FileType.isPreviewable(ft)) {
       const base = window.location.pathname.replace(/\/[^\/]*$/, "/");
       const full = base + entry.path;
@@ -660,21 +998,23 @@
                 : "<pre>" + APP.escapeHtml(t) + "</pre>";
           })
           .catch(() => {
-            document.getElementById("readerContent").innerHTML =
-              '<p style="color:var(--text-tertiary)">文件不存在</p>';
+            renderDesc();
           });
       } else if (ft === "image") {
         document.getElementById("readerContent").innerHTML =
           '<img src="' +
           this.escapeHtml(full) +
           '" style="max-width:100%;border-radius:var(--radius-lg);">';
-      } else {
+      } else if (ft === "pdf") {
         document.getElementById("readerContent").innerHTML =
-          '<p style="color:var(--text-tertiary)">此类型暂不支持预览</p>';
+          '<iframe src="' +
+          this.escapeHtml(full) +
+          '" style="width:100%;height:80vh;border:none;border-radius:var(--radius-lg);"></iframe>';
+      } else {
+        renderDesc();
       }
     } else {
-      document.getElementById("readerContent").innerHTML =
-        '<p style="color:var(--text-tertiary)">此类型暂不支持预览</p>';
+      renderDesc();
     }
     this.currentReaderId = id;
   },
@@ -847,9 +1187,13 @@
         .map((r, i) => {
           const e = this.data.entries.find((x) => x.id === r.id);
           if (!e) return "";
+          const snippet = this.getSearchSnippet(e.description || e.title, val);
           return `<div class="cmd-item ${i === this.cmdHighlight ? "highlighted" : ""}" data-id="${e.id}">
           <i data-lucide="file-text" class="cmd-item-icon"></i>
-          <span class="cmd-item-text">${this.escapeHtml(e.title)}</span>
+          <div class="cmd-item-main">
+            <div class="cmd-item-title">${SearchHighlight.highlight(e.title, val)}</div>
+            <div class="cmd-item-subtitle">${snippet}</div>
+          </div>
           <span class="cmd-item-hint">${this.escapeHtml(e.category)}</span>
         </div>`;
         })
@@ -863,6 +1207,19 @@
         });
       });
     }
+  },
+
+  getSearchSnippet(text, query) {
+    if (!text || !query) return this.escapeHtml(text?.slice(0, 80) || "");
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerText.indexOf(lowerQuery);
+    const start = Math.max(0, idx === -1 ? 0 : idx - 30);
+    const end = Math.min(text.length, start + 120);
+    const prefix = start > 0 ? "…" : "";
+    const suffix = end < text.length ? "…" : "";
+    const snippet = text.slice(start, end);
+    return prefix + SearchHighlight.highlight(snippet, query) + suffix;
   },
 
   execCmd(cmd) {
@@ -944,27 +1301,6 @@
         ? '<button class="filter-chip-clear" id="clearFilters">清除</button>'
         : "");
 
-    container.querySelectorAll(".filter-chip-remove").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const t = btn.dataset.type;
-        if (t === "cat") this.activeCategory = null;
-        if (t === "tag") this.activeTag = null;
-        if (t === "fav") this.showFavoritesOnly = false;
-        this.renderList();
-        this.renderFilterChips();
-        this.updateStatus();
-      });
-    });
-    const clearBtn = document.getElementById("clearFilters");
-    if (clearBtn)
-      clearBtn.addEventListener("click", () => {
-        this.activeCategory = null;
-        this.activeTag = null;
-        this.showFavoritesOnly = false;
-        this.renderList();
-        this.renderFilterChips();
-        this.updateStatus();
-      });
   },
 
   // ─── Density ───
@@ -995,6 +1331,32 @@
           : "共 " + total + " 条 · 显示 " + filtered + " 条";
   },
 
+  refreshAfterDataChange(options = {}) {
+    const {
+      message,
+      keepDetail = false,
+      keepSelection = false,
+      refreshAdmin = true,
+    } = options;
+    this.rebuildMetadata();
+    this.setupSearch();
+    this.saveData();
+    if (!keepDetail && !keepSelection) {
+      this.selectedEntryId = null;
+      this.focusedEntryId = null;
+      this.renderDetail();
+    }
+    this.renderList();
+    this.renderSidebar();
+    this.renderFilterChips();
+    this.updateStatus();
+    this.updateSidebarCounts();
+    this.updateListTitle();
+    if (refreshAdmin && document.getElementById("adminPanel").style.display !== "none")
+      ADMIN.renderTable();
+    if (message) Toast.success(message);
+  },
+
   // ─── Events ───
 
   bindEvents() {
@@ -1021,6 +1383,41 @@
       closeAdminBtn.addEventListener("click", () => {
         document.getElementById("adminPanel").style.display = "none";
       });
+
+    const manageTagsBtn = document.getElementById("manageTagsBtn");
+    if (manageTagsBtn)
+      manageTagsBtn.addEventListener("click", () =>
+        this.openMetadataManager("tag"),
+      );
+    const checkFilesBtn = document.getElementById("checkFilesBtn");
+    if (checkFilesBtn)
+      checkFilesBtn.addEventListener("click", () =>
+        ADMIN.checkFileIntegrity(),
+      );
+    const manageCatsBtn = document.getElementById("manageCatsBtn");
+    if (manageCatsBtn)
+      manageCatsBtn.addEventListener("click", () =>
+        this.openMetadataManager("category"),
+      );
+
+    const metadataClose = document.getElementById("metadataClose");
+    if (metadataClose)
+      metadataClose.addEventListener("click", () => this.closeMetadataManager());
+    const metadataOverlay = document.getElementById("metadataOverlay");
+    if (metadataOverlay)
+      metadataOverlay.addEventListener("click", () =>
+        this.closeMetadataManager(),
+      );
+
+    // Clean unused tags button lives inside metadataToolbar, use delegation on metadata modal
+    const metadataModal = document.getElementById("metadataModal");
+    if (metadataModal) {
+      metadataModal.addEventListener("click", (ev) => {
+        if (ev.target.closest("#cleanUnusedTagsBtn")) {
+          this.cleanUnusedTags();
+        }
+      });
+    }
 
     const themeToggle = document.getElementById("themeToggle");
     if (themeToggle)
@@ -1074,6 +1471,12 @@
     const batchTagBtn = document.getElementById("batchTagBtn");
     if (batchTagBtn)
       batchTagBtn.addEventListener("click", () => this.batchTag());
+    const batchFavBtn = document.getElementById("batchFavBtn");
+    if (batchFavBtn)
+      batchFavBtn.addEventListener("click", () => this.batchFavorite());
+    const batchRestoreBtn = document.getElementById("batchRestoreBtn");
+    if (batchRestoreBtn)
+      batchRestoreBtn.addEventListener("click", () => this.batchRestore());
 
     // Detail actions
     const detailReadBtn = document.getElementById("detailReadBtn");
@@ -1130,7 +1533,8 @@
       cmdInput.addEventListener("input", () => {
         this.cmdHighlight = -1;
         this.updateCmdMode();
-        this.filterCommands();
+        clearTimeout(this._cmdFilterTimer);
+        this._cmdFilterTimer = setTimeout(() => this.filterCommands(), 80);
       });
     const cmdOverlay = document.getElementById("cmdOverlay");
     if (cmdOverlay)
@@ -1176,35 +1580,259 @@
       .getElementById("entryForm")
       .addEventListener("submit", (e) => this.handleFormSubmit(e));
 
+    // Markdown editor tabs
+    const mdTabEdit = document.getElementById("mdTabEdit");
+    const mdTabPreview = document.getElementById("mdTabPreview");
+    if (mdTabEdit)
+      mdTabEdit.addEventListener("click", () => this.setMarkdownTab("edit"));
+    if (mdTabPreview)
+      mdTabPreview.addEventListener("click", () => this.setMarkdownTab("preview"));
+    const formDesc = document.getElementById("formDesc");
+    if (formDesc)
+      formDesc.addEventListener("input", () => {
+        if (document.getElementById("formDescPreview").style.display !== "none")
+          this.setMarkdownTab("preview");
+      });
+
+    // Form file upload
+    const formUpload = document.getElementById("formUpload");
+    const formFileInput = document.getElementById("formFileInput");
+    if (formUpload && formFileInput) {
+      formUpload.addEventListener("click", () => formFileInput.click());
+      formUpload.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        formUpload.classList.add("drag-over");
+      });
+      formUpload.addEventListener("dragleave", () =>
+        formUpload.classList.remove("drag-over"),
+      );
+      formUpload.addEventListener("drop", (e) => {
+        e.preventDefault();
+        formUpload.classList.remove("drag-over");
+        const file = e.dataTransfer.files[0];
+        if (file) this.uploadFormFile(file);
+      });
+      formFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) this.uploadFormFile(file);
+        e.target.value = "";
+      });
+    }
+
     // Export/Import/Deploy
     document
       .getElementById("exportBtn")
-      .addEventListener("click", () => ADMIN.exportJSON());
+      .addEventListener("click", () => ADMIN.openIoModal("export"));
     document
       .getElementById("importBtn")
+      .addEventListener("click", () => ADMIN.openIoModal("import"));
+    document
+      .getElementById("ioClose")
+      .addEventListener("click", () => ADMIN.closeIoModal());
+    document
+      .getElementById("ioOverlay")
+      .addEventListener("click", () => ADMIN.closeIoModal());
+    document
+      .getElementById("ioExportJson")
+      .addEventListener("click", () => ADMIN.exportJSON());
+    document
+      .getElementById("ioExportCsv")
+      .addEventListener("click", () => ADMIN.exportCSV());
+    document
+      .getElementById("ioExportMd")
+      .addEventListener("click", () => ADMIN.exportMdPackage());
+    document
+      .getElementById("ioImportJson")
       .addEventListener("click", () =>
-        document.getElementById("importFileInput").click(),
+        document.getElementById("ioImportJsonInput").click(),
       );
     document
-      .getElementById("importFileInput")
+      .getElementById("ioImportJsonInput")
       .addEventListener("change", (e) => ADMIN.importJSON(e));
+    document
+      .getElementById("ioImportCsv")
+      .addEventListener("click", () =>
+        document.getElementById("ioImportCsvInput").click(),
+      );
+    document
+      .getElementById("ioImportCsvInput")
+      .addEventListener("change", (e) => ADMIN.importCSV(e));
+    document
+      .getElementById("ioImportMd")
+      .addEventListener("click", () =>
+        document.getElementById("ioImportMdInput").click(),
+      );
+    document
+      .getElementById("ioImportMdInput")
+      .addEventListener("change", (e) => ADMIN.importMdFolder(e));
     const deployBtn = document.getElementById("deployBtn");
     if (deployBtn)
       deployBtn.addEventListener("click", () => ADMIN.deployToGitHub());
 
     // Sync buttons
-    document
-      .getElementById("checkUpdateBtn")
-      .addEventListener("click", () => this.checkServerUpdate());
-    document
-      .getElementById("resetFromServerBtn")
-      .addEventListener("click", () => this.resetFromServer());
+    const checkUpdateBtn = document.getElementById("checkUpdateBtn");
+    if (checkUpdateBtn)
+      checkUpdateBtn.addEventListener("click", () => this.checkServerUpdate());
+    const resetFromServerBtn = document.getElementById("resetFromServerBtn");
+    if (resetFromServerBtn)
+      resetFromServerBtn.addEventListener("click", () => this.resetFromServer());
 
     // Click outside toolbox closes it
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".toolbox") && !e.target.closest(".entry-row"))
         this.hideToolbox();
     });
+
+    // Metadata manager event delegation
+    const metadataList = document.getElementById("metadataList");
+    if (metadataList) {
+      metadataList.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-action]");
+        if (!btn) return;
+        const item = btn.closest(".metadata-item");
+        if (!item) return;
+        const name = item.dataset.name;
+        const action = btn.dataset.action;
+        if (action === "rename") this.renameMetadata(name);
+        else if (action === "merge") this.mergeMetadata(name);
+        else if (action === "delete") this.deleteMetadata(name);
+      });
+    }
+
+    // Filter chips event delegation
+    const filterChips = document.getElementById("filterChips");
+    if (filterChips) {
+      filterChips.addEventListener("click", (ev) => {
+        const remove = ev.target.closest(".filter-chip-remove");
+        if (remove) {
+          const t = remove.dataset.type;
+          if (t === "cat") this.activeCategory = null;
+          if (t === "tag") this.activeTag = null;
+          if (t === "fav") this.showFavoritesOnly = false;
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+          return;
+        }
+        if (ev.target.closest("#clearFilters")) {
+          this.activeCategory = null;
+          this.activeTag = null;
+          this.showFavoritesOnly = false;
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+        }
+      });
+    }
+
+    // Sidebar event delegation
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar) {
+      sidebar.addEventListener("click", (ev) => {
+        const viewItem = ev.target.closest(".sidebar-item[data-view]");
+        if (viewItem) {
+          this.currentSidebarView = viewItem.dataset.view;
+          this.showFavoritesOnly = viewItem.dataset.view === "favorites";
+          this.activeCategory = null;
+          this.activeTag = null;
+          this.searchQuery = "";
+          this.selectedEntryId = null;
+          this.focusedEntryId = null;
+          this.renderDetail();
+          this.renderSidebar();
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+          return;
+        }
+
+        const treeItem = ev.target.closest(".tree-item[data-cat]");
+        if (treeItem) {
+          const cat = treeItem.dataset.cat;
+          this.activeCategory = this.activeCategory === cat ? null : cat;
+          this.activeTag = null;
+          this.searchQuery = "";
+          this.renderSidebar();
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+          return;
+        }
+
+        const tagPill = ev.target.closest(".tag-pill[data-tag]");
+        if (tagPill) {
+          const tag = tagPill.dataset.tag;
+          this.activeTag = this.activeTag === tag ? null : tag;
+          this.activeCategory = null;
+          this.searchQuery = "";
+          this.renderSidebar();
+          this.renderList();
+          this.renderFilterChips();
+          this.updateStatus();
+          return;
+        }
+      });
+    }
+
+    // Entry list event delegation
+    const entryList = document.getElementById("entryList");
+    if (entryList) {
+      entryList.addEventListener("click", (ev) => {
+        const row = ev.target.closest(".entry-row");
+        if (!row) return;
+        const id = parseInt(row.dataset.id);
+
+        const actionBtn = ev.target.closest("[data-action]");
+        if (actionBtn) {
+          ev.stopPropagation();
+          const action = actionBtn.dataset.action;
+          const aid = parseInt(actionBtn.dataset.id);
+          if (action === "favorite") this.toggleFavorite(aid);
+          else if (action === "restore") this.restoreEntry(aid);
+          else if (action === "permanent-delete") this.permanentDelete(aid);
+          return;
+        }
+
+        if (ev.target.closest(".entry-checkbox")) {
+          ev.stopPropagation();
+          this.toggleSelection(id);
+          return;
+        }
+
+        if (this.batchMode) {
+          ev.stopPropagation();
+          this.toggleSelection(id);
+          return;
+        }
+
+        if (this.currentSidebarView === "recyclebin") {
+          this.selectedEntryId = id;
+          this.focusedEntryId = id;
+          this.renderList();
+          return;
+        }
+
+        this.selectEntry(id);
+      });
+
+      entryList.addEventListener("mouseenter", (ev) => {
+        if (this.batchMode) return;
+        const row = ev.target.closest(".entry-row");
+        if (!row) return;
+        const id = parseInt(row.dataset.id);
+        const rect = row.getBoundingClientRect();
+        this.showToolbox(rect.right - 220, rect.top + 6, id);
+      }, true);
+
+      entryList.addEventListener("mouseleave", (ev) => {
+        if (this.batchMode) return;
+        const row = ev.target.closest(".entry-row");
+        if (!row) return;
+        setTimeout(() => {
+          if (!document.querySelector(".toolbox:hover")) this.hideToolbox();
+        }, 150);
+      }, true);
+    }
   },
 
   setupKeyboardShortcuts() {
@@ -1283,9 +1911,14 @@
         return;
       }
 
-      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+      if (e.key === "/" && (!e.target || !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) {
         e.preventDefault();
         this.openCommandPalette("");
+        return;
+      }
+      if (e.key === "?" && (!e.target || !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) {
+        e.preventDefault();
+        Toast.info("快捷键：/ 搜索，j/k 导航，Enter 打开，x 删除，r 恢复，Space 多选，b 批量模式，Esc 关闭");
         return;
       }
 
@@ -1305,35 +1938,113 @@
         return;
       }
 
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "j" || e.key === "k") {
+        if (e.target && ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
         const rows = document.querySelectorAll(".entry-row");
         if (rows.length === 0) return;
         e.preventDefault();
-        let idx = Array.from(rows).findIndex((r) =>
-          r.classList.contains("focused"),
-        );
-        if (idx < 0) idx = -1;
-        idx =
-          e.key === "ArrowDown"
-            ? Math.min(idx + 1, rows.length - 1)
-            : Math.max(idx - 1, 0);
-        rows.forEach((r) => r.classList.remove("focused"));
-        rows[idx].classList.add("focused");
-        rows[idx].scrollIntoView({ block: "nearest" });
-        rows[idx].focus();
+        const down = e.key === "ArrowDown" || e.key === "j";
+        this.focusRow(down ? 1 : -1);
+        return;
       }
 
       if (e.key === "Enter") {
+        if (e.target && ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
         const focused = document.querySelector(".entry-row.focused");
         if (focused) {
           focused.click();
           e.preventDefault();
         }
+        return;
+      }
+
+      if (e.key === "x" && (!e.target || !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) {
+        e.preventDefault();
+        const focused = document.querySelector(".entry-row.focused");
+        if (focused) {
+          const id = parseInt(focused.dataset.id);
+          if (this.currentSidebarView === "recyclebin") {
+            this.permanentDelete(id);
+          } else {
+            this.deleteEntry(id);
+          }
+        }
+        return;
+      }
+
+      if (e.key === "r" && (!e.target || !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) {
+        e.preventDefault();
+        const focused = document.querySelector(".entry-row.focused");
+        if (focused && this.currentSidebarView === "recyclebin") {
+          this.restoreEntry(parseInt(focused.dataset.id));
+        }
+        return;
+      }
+
+      if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+        e.preventDefault();
+        const focused = document.querySelector(".entry-row.focused");
+        if (focused) {
+          if (!this.batchMode) this.setBatchMode(true);
+          this.toggleSelection(parseInt(focused.dataset.id));
+        }
+        return;
+      }
+
+      if (e.key === "b" && (!e.target || !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) {
+        e.preventDefault();
+        this.setBatchMode(!this.batchMode);
+        return;
       }
     });
   },
 
+  focusRow(delta) {
+    const rows = document.querySelectorAll(".entry-row");
+    if (rows.length === 0) return;
+    let idx = Array.from(rows).findIndex((r) => parseInt(r.dataset.id) === this.focusedEntryId);
+    if (idx < 0) idx = this.selectedEntryId
+      ? Array.from(rows).findIndex((r) => parseInt(r.dataset.id) === this.selectedEntryId)
+      : -1;
+    if (idx < 0) idx = 0;
+    idx = Math.min(Math.max(idx + delta, 0), rows.length - 1);
+    this.focusedEntryId = parseInt(rows[idx].dataset.id);
+    rows.forEach((r) => r.classList.remove("focused"));
+    rows[idx].classList.add("focused");
+    rows[idx].scrollIntoView({ block: "nearest" });
+    rows[idx].focus();
+  },
+
   // ─── CRUD ───
+
+  async uploadFormFile(file) {
+    if (!this.apiMode) {
+      Toast.warning("请启动本地后端服务后再上传附件");
+      return;
+    }
+    const formUpload = document.getElementById("formUpload");
+    if (formUpload) {
+      formUpload.innerHTML = `<i data-lucide="loader-2" class="spin"></i><span>上传中...</span>`;
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+    try {
+      const result = await API.uploadFile(file);
+      document.getElementById("formPath").value = result.path;
+      const titleInput = document.getElementById("formTitle");
+      if (!titleInput.value.trim()) {
+        titleInput.value = file.name.replace(/\.[^.]+$/, "");
+      }
+      Toast.success(`上传成功: ${result.filename}`);
+      History.log("上传附件", result.filename);
+    } catch (err) {
+      Toast.error("上传失败: " + err.message);
+    } finally {
+      if (formUpload) {
+        formUpload.innerHTML = `<i data-lucide="upload-cloud"></i><span>点击或拖拽上传附件</span>`;
+        if (typeof lucide !== "undefined") lucide.createIcons();
+      }
+    }
+  },
 
   openForm(entry) {
     const modal = document.getElementById("formModal");
@@ -1367,7 +2078,31 @@
       document.getElementById("formCategoryNew").value = "";
     }
     this.populatePathSuggestions();
+    this.setMarkdownTab("edit");
     modal.style.display = "flex";
+  },
+
+  setMarkdownTab(tab) {
+    const ta = document.getElementById("formDesc");
+    const preview = document.getElementById("formDescPreview");
+    const editTab = document.getElementById("mdTabEdit");
+    const previewTab = document.getElementById("mdTabPreview");
+    if (!ta || !preview || !editTab || !previewTab) return;
+    if (tab === "preview") {
+      ta.style.display = "none";
+      preview.style.display = "block";
+      preview.innerHTML =
+        typeof marked !== "undefined"
+          ? marked.parse(ta.value || "*暂无内容*")
+          : this.escapeHtml(ta.value || "*暂无内容*");
+      editTab.classList.remove("active");
+      previewTab.classList.add("active");
+    } else {
+      ta.style.display = "block";
+      preview.style.display = "none";
+      editTab.classList.add("active");
+      previewTab.classList.remove("active");
+    }
   },
 
   closeForm() {
@@ -1455,24 +2190,15 @@
       }
     }
 
-    this.rebuildMetadata();
-    this.setupSearch();
-    this.saveData();
     this.closeForm();
-    this.renderList();
-    this.renderSidebar();
-    this.renderDetail();
-    this.renderFilterChips();
-    this.updateStatus();
-    this.updateSidebarCounts();
-    if (document.getElementById("adminPanel").style.display !== "none")
-      ADMIN.renderTable();
+    this.refreshAfterDataChange({ keepDetail: true });
+    History.log(editId ? "更新条目" : "创建条目", title);
   },
 
   async deleteEntry(id) {
     const entry = this.data.entries.find((e) => e.id === id);
     if (!entry) return;
-    const ok = await ConfirmDialog.show("确定要删除「" + entry.title + "」吗？");
+    const ok = await ConfirmDialog.show("确定要删除「" + entry.title + "」吗？删除后可从回收站恢复。");
     if (!ok) return;
 
     if (this.apiMode) {
@@ -1485,21 +2211,66 @@
     }
 
     this.data.entries = this.data.entries.filter((e) => e.id !== id);
-    this.rebuildMetadata();
-    this.setupSearch();
-    this.saveData();
-    if (this.selectedEntryId === id) {
+    entry.deletedAt = new Date().toISOString();
+    if (!this.data.deletedEntries) this.data.deletedEntries = [];
+    this.data.deletedEntries.push(entry);
+
+    const keepDetail = this.selectedEntryId !== id;
+    if (!keepDetail) {
       this.selectedEntryId = null;
-      this.renderDetail();
+      this.focusedEntryId = null;
     }
-    this.renderList();
-    this.renderSidebar();
-    this.renderFilterChips();
-    this.updateStatus();
+    this.refreshAfterDataChange({ keepDetail });
     if (this.currentReaderId === id) this.closeReader();
-    if (document.getElementById("adminPanel").style.display !== "none")
-      ADMIN.renderTable();
-    Toast.success("删除成功");
+    History.log("删除条目", entry.title);
+  },
+
+  async restoreEntry(id) {
+    const idx = (this.data.deletedEntries || []).findIndex((e) => e.id === id);
+    if (idx === -1) return;
+    const entry = this.data.deletedEntries[idx];
+
+    const existingId = this.data.entries.find((e) => e.id === id);
+    if (existingId) {
+      entry.id = this.nextId++;
+    }
+    delete entry.deletedAt;
+
+    if (this.apiMode) {
+      try {
+        const created = await API.createEntry(entry);
+        this.data.entries.push(created);
+        this.data.deletedEntries.splice(idx, 1);
+        Toast.success("恢复成功");
+      } catch (err) {
+        Toast.error("恢复失败: " + err.message);
+        return;
+      }
+    } else {
+      this.data.entries.push(entry);
+    this.data.deletedEntries.splice(idx, 1);
+    Toast.success("恢复成功");
+  }
+
+    this.refreshAfterDataChange({ message: "恢复成功" });
+    History.log("恢复条目", entry.title);
+  },
+
+  async permanentDelete(id) {
+    const entry = (this.data.deletedEntries || []).find((e) => e.id === id);
+    if (!entry) return;
+    const ok = await ConfirmDialog.show(
+      "确定要永久删除「" + entry.title + "」吗？此操作不可撤销。",
+    );
+    if (!ok) return;
+
+    this.data.deletedEntries = (this.data.deletedEntries || []).filter(
+      (e) => e.id !== id,
+    );
+    this.selectedEntryId = null;
+    this.focusedEntryId = null;
+    this.refreshAfterDataChange({ message: "已永久删除" });
+    History.log("永久删除", entry.title);
   },
 
   downloadEntry(id) {
@@ -1529,11 +2300,37 @@
   },
 
   toggleFavorite(id) {
-    if (this.favorites.has(id)) this.favorites.delete(id);
+    const isFav = this.favorites.has(id);
+    if (isFav) this.favorites.delete(id);
     else this.favorites.add(id);
     localStorage.setItem("kb_favorites", JSON.stringify([...this.favorites]));
-    this.renderList();
-    this.renderDetail();
+
+    const favHtml = isFav
+      ? '<i data-lucide="star"></i>'
+      : '<i data-lucide="star" style="fill:var(--accent-amber);color:var(--accent-amber);"></i>';
+
+    const rowFav = document.querySelector(`.entry-row[data-id="${id}"] .entry-fav`);
+    if (rowFav) {
+      rowFav.classList.toggle("favorited", !isFav);
+      rowFav.innerHTML = favHtml;
+    }
+
+    if (this.selectedEntryId === id) {
+      const detailFav = document.getElementById("detailFavBtn");
+      if (detailFav) {
+        detailFav.classList.toggle("favorited", !isFav);
+        detailFav.innerHTML = isFav
+          ? '<i data-lucide="star"></i> 收藏'
+          : '<i data-lucide="star" style="fill:var(--accent-amber);color:var(--accent-amber);"></i> 已收藏';
+      }
+    }
+
+    if (this.currentReaderId === id) {
+      const readerFav = document.getElementById("readerFavBtn");
+      if (readerFav) readerFav.innerHTML = favHtml;
+    }
+
+    if (typeof lucide !== "undefined") lucide.createIcons();
     this.updateSidebarCounts();
   },
 
@@ -1566,9 +2363,17 @@
     );
   },
 
+  detectFileProtocol() {
+    if (window.location.protocol === "file:") {
+      const banner = document.getElementById("protocolWarning");
+      if (banner) banner.style.display = "flex";
+    }
+  },
+
   registerSW() {
-    if ("serviceWorker" in navigator)
+    if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   },
 
   loadUrlState() {
@@ -1681,22 +2486,28 @@
 
   initTheme() {
     const saved = localStorage.getItem("kb_theme");
-    if (
-      saved === "dark" ||
-      (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)
-    ) {
-      document.documentElement.setAttribute("data-theme", "dark");
-    }
+    const isDark = saved ? saved === "dark" : false;
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+    this.updateThemeIcon(isDark);
   },
 
   toggleTheme() {
     const isDark =
       document.documentElement.getAttribute("data-theme") === "dark";
+    const next = !isDark;
     document.documentElement.setAttribute(
       "data-theme",
-      isDark ? "light" : "dark",
+      next ? "dark" : "light",
     );
-    localStorage.setItem("kb_theme", isDark ? "light" : "dark");
+    localStorage.setItem("kb_theme", next ? "dark" : "light");
+    this.updateThemeIcon(next);
+  },
+
+  updateThemeIcon(isDark) {
+    const icon = document.getElementById("themeIcon");
+    if (!icon) return;
+    icon.setAttribute("data-lucide", isDark ? "sun" : "moon");
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
   populatePathSuggestions() {

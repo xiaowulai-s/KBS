@@ -1,4 +1,4 @@
-﻿﻿const CACHE_NAME = 'kbs-fluent-v2';
+﻿﻿﻿﻿const CACHE_NAME = 'kbs-industrial-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -284,6 +284,39 @@ const PromptDialog = {
   },
 };
 
+// Operation history manager
+const History = {
+  KEY: "knowledgeBaseHistory",
+  MAX_ITEMS: 50,
+
+  log(action, detail = "") {
+    const items = this.getHistory();
+    items.unshift({
+      action,
+      detail,
+      time: new Date().toISOString(),
+    });
+    localStorage.setItem(this.KEY, JSON.stringify(items.slice(0, this.MAX_ITEMS)));
+  },
+
+  getHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(this.KEY)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  clear() {
+    localStorage.removeItem(this.KEY);
+  },
+
+  formatTime(iso) {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  },
+};
+
 // Sort helper
 const Sorter = {
   sortByDate(entries, ascending = false) {
@@ -305,14 +338,17 @@ const Sorter = {
 
 // Skeleton loader
 const Skeleton = {
-  show(grid) {
+  show(grid, view = "list") {
+    const isGrid = view === "grid";
     grid.innerHTML = Array.from(
-      { length: 6 },
+      { length: isGrid ? 6 : 8 },
       (_, i) => `
-      <div class="skeleton-card" aria-hidden="true">
-        <div class="skeleton-line skeleton-title"></div>
-        <div class="skeleton-line skeleton-text"></div>
-        <div class="skeleton-line skeleton-text-short"></div>
+      <div class="skeleton-card ${isGrid ? "" : "skeleton-list"}" aria-hidden="true">
+        <div class="skeleton-header">
+          <div class="skeleton-icon"></div>
+          <div class="skeleton-line skeleton-title"></div>
+        </div>
+        ${isGrid ? '<div class="skeleton-line skeleton-text"></div><div class="skeleton-line skeleton-text-short"></div>' : '<div class="skeleton-line skeleton-text-long"></div>'}
         <div class="skeleton-footer">
           <div class="skeleton-tags">
             <div class="skeleton-tag"></div>
@@ -326,6 +362,7 @@ const Skeleton = {
   },
 
   hide(grid) {
+    if (!grid) return;
     const skeletons = grid.querySelectorAll(".skeleton-card");
     skeletons.forEach((el) => el.remove());
   },

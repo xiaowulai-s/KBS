@@ -8,6 +8,7 @@ const UI = {
     this.initSidebar();
     this.initMobileTab();
     this.initResizeHandler();
+    this.initOverlayClick();
   },
 
   // ─── Sidebar ───
@@ -16,20 +17,51 @@ const UI = {
     const sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
     const collapsed = localStorage.getItem(this.SIDEBAR_COLLAPSED_KEY) === "true";
-    if (collapsed) sidebar.classList.add("collapsed");
+    if (collapsed && window.innerWidth > 1279) {
+      sidebar.classList.add("collapsed");
+    }
   },
 
   toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
+    const layout = document.getElementById("layout");
     if (!sidebar) return;
-    const isHidden = sidebar.classList.contains("hidden");
-    const isCollapsed = sidebar.classList.contains("collapsed");
 
     if (window.innerWidth <= 1024) {
-      sidebar.classList.toggle("hidden", !isHidden);
+      const isOpen = sidebar.classList.contains("open");
+      sidebar.classList.toggle("open", !isOpen);
+      layout?.classList.toggle("overlay", !isOpen);
     } else {
+      const isCollapsed = sidebar.classList.contains("collapsed");
       sidebar.classList.toggle("collapsed", !isCollapsed);
       localStorage.setItem(this.SIDEBAR_COLLAPSED_KEY, !isCollapsed);
+    }
+  },
+
+  closeSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const layout = document.getElementById("layout");
+    sidebar?.classList.remove("open");
+    layout?.classList.remove("overlay");
+  },
+
+  // ─── Detail Panel ───
+
+  openDetailPanel() {
+    if (window.innerWidth <= 1024) {
+      const detail = document.getElementById("detailColumn");
+      const layout = document.getElementById("layout");
+      detail?.classList.add("open");
+      layout?.classList.add("overlay");
+    }
+  },
+
+  closeDetailPanel() {
+    const detail = document.getElementById("detailColumn");
+    const layout = document.getElementById("layout");
+    detail?.classList.remove("open");
+    if (!document.getElementById("sidebar")?.classList.contains("open")) {
+      layout?.classList.remove("overlay");
     }
   },
 
@@ -42,6 +74,9 @@ const UI = {
         this.showMobileTab(tab.dataset.tab);
       });
     });
+    if (window.innerWidth <= 768) {
+      this.showMobileTab("list");
+    }
   },
 
   showMobileTab(tab) {
@@ -52,6 +87,9 @@ const UI = {
     const listColumn = document.querySelector(".list-column");
     const detailColumn = document.querySelector(".detail-column");
     const sidebar = document.getElementById("sidebar");
+
+    this.closeSidebar();
+    this.closeDetailPanel();
 
     if (tab === "list") {
       listColumn?.classList.add("active");
@@ -86,14 +124,27 @@ const UI = {
     }
   },
 
+  // ─── Overlay Click ───
+
+  initOverlayClick() {
+    const layout = document.getElementById("layout");
+    if (!layout) return;
+    layout.addEventListener("click", (e) => {
+      if (e.target === layout && layout.classList.contains("overlay")) {
+        this.closeSidebar();
+        this.closeDetailPanel();
+      }
+    });
+  },
+
   // ─── Admin Panel ───
 
   toggleAdminPanel() {
     const p = document.getElementById("adminPanel");
     if (!p) return;
     const isHidden = p.style.display === "none" || !p.style.display;
-    p.style.display = isHidden ? "block" : "none";
-    if (isHidden) ADMIN.renderTable();
+    p.style.display = isHidden ? "flex" : "none";
+    if (isHidden && typeof ADMIN !== "undefined") ADMIN.renderTable();
   },
 
   closeAdminPanel() {
@@ -123,6 +174,10 @@ const UI = {
 
   initResizeHandler() {
     window.addEventListener("resize", () => {
+      if (window.innerWidth > 1024) {
+        this.closeSidebar();
+        this.closeDetailPanel();
+      }
       if (window.innerWidth > 768) {
         document.querySelector(".list-column")?.classList.add("active");
         document.querySelector(".detail-column")?.classList.remove("active");

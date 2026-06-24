@@ -1,0 +1,35 @@
+# ============================================================================
+# .gitignore for FPGA Verilog Project
+# ============================================================================
+# Ignore generated/build files, keep source and constraints
+
+# Generated binaries
+*.bit
+*.mcs
+*.bin
+*.hex
+
+# Vivado/Quraus intermediate files
+*.log
+*.jou
+*.cache
+*.hw
+*.ws
+
+# Run directories
+*.runs/
+*.srcs/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Simulation outputs
+*.vcd
+*.wdb
+sim_out
+
+# OS files
+.DS_Store
+Thumbs.db

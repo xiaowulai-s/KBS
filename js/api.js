@@ -62,6 +62,21 @@ const API = {
     return await this.request("DELETE", `/api/entries/${id}`);
   },
 
+  async uploadFile(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const resp = await fetch(this.BASE_URL + "/api/upload", {
+      method: "POST",
+      body: formData,
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text}`);
+    }
+    return await resp.json();
+  },
+
   async deploy(config = {}) {
     return await this.request("POST", "/api/deploy", config);
   },

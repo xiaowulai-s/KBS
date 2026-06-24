@@ -1,6 +1,6 @@
 ﻿{
-    "description":  "通过 GitHub Pages 分享的本地文件知识库",
-    "short_name":  "知识库",
+    "description":  "结构化整理本地文件，构建可搜索、可分享的在线知识库",
+    "short_name":  "KBS",
     "icons":  [
                   {
                       "type":  "image/png",
@@ -13,9 +13,9 @@
                       "src":  "/assets/images/icon-512.png"
                   }
               ],
-    "theme_color":  "#4f46e5",
+    "theme_color":  "#00d4aa",
     "display":  "standalone",
-    "name":  "本地文件知识库",
+    "name":  "KBS · 本地文件知识库",
     "background_color":  "#f8fafc",
     "start_url":  "/index.html",
     "orientation":  "any"

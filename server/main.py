@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -76,10 +76,14 @@ def load_index() -> dict:
             "siteDescription": "通过本地后端服务持久化的知识库",
             "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "entries": [],
+            "deletedEntries": [],
         }
     try:
         with open(DATA_FILE, "r", encoding="utf-8-sig") as f:
-            return json.load(f)
+            data = json.load(f)
+            if "deletedEntries" not in data:
+                data["deletedEntries"] = []
+            return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取索引失败：{e}")
 
@@ -88,6 +92,8 @@ def save_index(data: dict) -> None:
     """保存 index.json"""
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     data["generatedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if "deletedEntries" not in data:
+        data["deletedEntries"] = []
     try:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -184,14 +190,51 @@ def update_entry(entry_id: int, update: EntryUpdate):
 @app.delete("/api/entries/{entry_id}")
 def delete_entry(entry_id: int):
     data = load_index()
-    original_len = len(data.get("entries", []))
-    data["entries"] = [e for e in data.get("entries", []) if e.get("id") != entry_id]
-
-    if len(data["entries"]) == original_len:
+    entry = next((e for e in data.get("entries", []) if e.get("id") == entry_id), None)
+    if not entry:
         raise HTTPException(status_code=404, detail="条目不存在")
 
+    data["entries"] = [e for e in data.get("entries", []) if e.get("id") != entry_id]
+    entry["deletedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    data.setdefault("deletedEntries", []).append(entry)
     save_index(data)
     return {"success": True, "deleted": entry_id}
+
+
+@app.post("/api/upload")
+def upload_file(file: UploadFile = File(...)):
+    """上传文件到 docs/ 目录，返回相对路径"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    upload_dir = BASE_DIR / "docs"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # 清理文件名，避免覆盖
+    safe_name = Path(file.filename).name
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c in "._-")
+    if not safe_name:
+        safe_name = "upload"
+    stem = Path(safe_name).stem
+    suffix = Path(safe_name).suffix
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    final_name = f"{stem}_{timestamp}{suffix}"
+    target = upload_dir / final_name
+
+    try:
+        with open(target, "wb") as f:
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存文件失败：{e}")
+    finally:
+        file.file.close()
+
+    relative = f"docs/{final_name}"
+    return {"success": True, "path": relative, "filename": final_name}
 
 
 @app.post("/api/deploy")
