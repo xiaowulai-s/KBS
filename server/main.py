@@ -45,6 +45,7 @@ class Entry(BaseModel):
     description: str = ""
     createdAt: str = Field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     type: str = "markdown"
+    content: str = ""
 
 
 class EntryCreate(BaseModel):
@@ -55,6 +56,7 @@ class EntryCreate(BaseModel):
     description: str = ""
     createdAt: Optional[str] = None
     type: str = "markdown"
+    content: Optional[str] = ""
 
 
 class EntryUpdate(BaseModel):
@@ -65,6 +67,7 @@ class EntryUpdate(BaseModel):
     description: Optional[str] = None
     createdAt: Optional[str] = None
     type: Optional[str] = None
+    content: Optional[str] = None
 
 
 def load_index() -> dict:

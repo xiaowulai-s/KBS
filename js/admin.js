@@ -90,28 +90,38 @@ const ADMIN = {
     }
   },
 
-  // Render stats dashboard with category distribution
+  // Render stats dashboard: overview, category distribution, hot tags, file types, recent activity
   renderStatsDashboard(entries) {
     const container = document.getElementById("statsContainer");
     if (!container) return;
 
-    // Compute category distribution
     const catCounts = {};
+    const tagCounts = {};
     const typeCounts = {};
     entries.forEach((e) => {
       const cat = e.category || "未分类";
       catCounts[cat] = (catCounts[cat] || 0) + 1;
 
-      const type = e.type || "other";
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      (e.tags || []).forEach((t) => {
+        tagCounts[t] = (tagCounts[t] || 0) + 1;
+      });
+
+      const ft = FileType.detect(e.path);
+      typeCounts[ft] = (typeCounts[ft] || 0) + 1;
     });
 
-    const maxCatCount = Math.max(...Object.values(catCounts), 1);
-    const catBars = Object.entries(catCounts)
-      .sort((a, b) => b[1] - a[1])
+    const totalEntries = entries.length;
+    const totalCategories = Object.keys(catCounts).length;
+    const totalTags = Object.keys(tagCounts).length;
+    const favCount = APP.favorites ? APP.favorites.size : 0;
+
+    const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+    const maxCatCount = sortedCats.length ? sortedCats[0][1] : 1;
+    const catBars = sortedCats
+      .slice(0, 12)
       .map(([cat, count]) => {
         const pct = ((count / maxCatCount) * 100).toFixed(0);
-        return `<div class="chart-bar">
+        return `<div class="chart-bar" data-cat="${APP.escapeHtml(cat)}" role="button" tabindex="0">
           <span class="chart-label">${APP.escapeHtml(cat)}</span>
           <div class="chart-track"><div class="chart-fill" style="width:${pct}%"></div></div>
           <span class="chart-value">${count}</span>
@@ -119,35 +129,128 @@ const ADMIN = {
       })
       .join("");
 
-    const totalEntries = entries.length;
-    const totalCategories = Object.keys(catCounts).length;
-    const totalTypes = Object.keys(typeCounts).length;
-    const favCount = APP.favorites ? APP.favorites.size : 0;
+    const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+    const maxTagCount = sortedTags.length ? sortedTags[0][1] : 1;
+    const hotTags = sortedTags
+      .slice(0, 24)
+      .map(([tag, count]) => {
+        const weight = count / maxTagCount;
+        const size = weight >= 0.8 ? "lg" : weight >= 0.5 ? "md" : weight >= 0.25 ? "sm" : "xs";
+        return `<span class="tag-cloud-item tag-size-${size}" data-tag="${APP.escapeHtml(tag)}">#${APP.escapeHtml(tag)} <small>${count}</small></span>`;
+      })
+      .join("");
+
+    const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+    const typeIcons = {
+      markdown: "file-text",
+      image: "image",
+      pdf: "file-text",
+      video: "video",
+      audio: "music",
+      other: "file",
+    };
+    const typeList = sortedTypes
+      .map(([type, count]) => {
+        const icon = typeIcons[type] || "file";
+        return `<div class="type-pill" data-type="${APP.escapeHtml(type)}">
+          <i data-lucide="${icon}"></i>
+          <span>${APP.escapeHtml(type)}</span>
+          <span class="type-count">${count}</span>
+        </div>`;
+      })
+      .join("");
+
+    const recentEntries = [...entries]
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+      .slice(0, 10)
+      .map((e) => {
+        const date = (e.createdAt || "").slice(0, 10) || "-";
+        return `<div class="activity-item" data-id="${e.id}">
+          <div class="activity-dot"></div>
+          <div class="activity-main">
+            <span class="activity-title">${APP.escapeHtml(e.title)}</span>
+            <span class="activity-meta">${APP.escapeHtml(e.category)} · ${date}</span>
+          </div>
+        </div>`;
+      })
+      .join("");
 
     container.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card">
+      <div class="stats-overview">
+        <div class="stat-card stat-card-primary">
           <div class="stat-number">${totalEntries}</div>
           <div class="stat-label">总条目</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${totalCategories}</div>
-          <div class="stat-label">分类数</div>
+          <div class="stat-label">分类</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${totalTypes}</div>
-          <div class="stat-label">文件类型</div>
+          <div class="stat-number">${totalTags}</div>
+          <div class="stat-label">标签</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${favCount}</div>
-          <div class="stat-label">收藏数</div>
+          <div class="stat-label">收藏</div>
         </div>
       </div>
-      <div class="category-chart">
-        <h3 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary);">分类分布</h3>
-        ${catBars}
+      <div class="stats-charts">
+        <div class="stats-panel category-chart">
+          <h3 class="stats-panel-title"><i data-lucide="folder-tree"></i> 分类分布</h3>
+          ${catBars || '<div class="stats-empty">暂无分类数据</div>'}
+        </div>
+        <div class="stats-panel tag-cloud">
+          <h3 class="stats-panel-title"><i data-lucide="tags"></i> 热门标签</h3>
+          ${hotTags || '<div class="stats-empty">暂无标签数据</div>'}
+        </div>
+      </div>
+      <div class="stats-charts">
+        <div class="stats-panel type-chart">
+          <h3 class="stats-panel-title"><i data-lucide="file-type"></i> 文件类型</h3>
+          <div class="type-list">${typeList || '<div class="stats-empty">暂无文件类型数据</div>'}</div>
+        </div>
+        <div class="stats-panel activity-chart">
+          <h3 class="stats-panel-title"><i data-lucide="clock"></i> 最近活动</h3>
+          ${recentEntries || '<div class="stats-empty">暂无活动记录</div>'}
+        </div>
       </div>
     `;
+
+    container.querySelectorAll(".chart-bar[data-cat]").forEach((el) => {
+      el.addEventListener("click", () => {
+        APP.activeCategory = el.dataset.cat;
+        APP.activeTag = null;
+        APP.searchQuery = "";
+        document.getElementById("adminPanel").style.display = "none";
+        APP.renderSidebar();
+        APP.renderList();
+        APP.renderFilterChips();
+        APP.updateStatus();
+      });
+    });
+
+    container.querySelectorAll(".tag-cloud-item[data-tag]").forEach((el) => {
+      el.addEventListener("click", () => {
+        APP.activeTag = el.dataset.tag;
+        APP.activeCategory = null;
+        APP.searchQuery = "";
+        document.getElementById("adminPanel").style.display = "none";
+        APP.renderSidebar();
+        APP.renderList();
+        APP.renderFilterChips();
+        APP.updateStatus();
+      });
+    });
+
+    container.querySelectorAll(".activity-item[data-id]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const id = parseInt(el.dataset.id);
+        document.getElementById("adminPanel").style.display = "none";
+        APP.selectEntry(id);
+      });
+    });
+
+    if (typeof lucide !== "undefined") lucide.createIcons();
   },
 
   // Render recent operation history
@@ -239,25 +342,29 @@ const ADMIN = {
     History.log("导出数据", "JSON");
   },
 
-  // Import JSON
+  // Import JSON (single or multiple files)
   async importJSON(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files = event.target.files ? [...event.target.files] : [];
+    if (files.length === 0) return;
+    await this.importJSONFiles(files);
+  },
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
+  async importJSONFiles(files) {
+    const existingIds = new Set(APP.data.entries.map((en) => en.id));
+    let totalAdded = 0, totalSkipped = 0, totalFailed = 0, fileCount = 0;
+
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith(".json")) continue;
       try {
-        const imported = JSON.parse(e.target.result);
+        const text = await file.text();
+        const imported = JSON.parse(text);
         if (!imported.entries || !Array.isArray(imported.entries)) {
-          Toast.error("无效的 JSON 格式，缺少 entries 数组");
-          return;
+          Toast.warning(`${file.name} 缺少 entries 数组，已跳过`);
+          continue;
         }
+        fileCount++;
 
-        const existingIds = new Set(APP.data.entries.map((en) => en.id));
-        let added = 0,
-          skipped = 0,
-          failed = 0;
-
+        let added = 0, skipped = 0, failed = 0;
         for (const entry of imported.entries) {
           if (existingIds.has(entry.id)) {
             skipped++;
@@ -271,11 +378,11 @@ const ADMIN = {
                 tags: entry.tags || [],
                 path: entry.path || "",
                 description: entry.description || "",
-                createdAt:
-                  entry.createdAt || new Date().toISOString().slice(0, 10),
+                createdAt: entry.createdAt || new Date().toISOString().slice(0, 10),
                 type: entry.type || FileType.detect(entry.path || ""),
               });
               APP.data.entries.push(created);
+              existingIds.add(created.id);
               added++;
             } catch (err) {
               failed++;
@@ -283,31 +390,69 @@ const ADMIN = {
             }
           } else {
             APP.data.entries.push(entry);
+            existingIds.add(entry.id);
             added++;
           }
         }
-
-        APP.rebuildMetadata();
-        APP.nextId = Math.max(...APP.data.entries.map((e) => e.id), 0) + 1;
-        APP.setupSearch();
-        APP.saveData();
-        APP.renderList();
-        APP.renderSidebar();
-        APP.renderDetail();
-        APP.updateStatus();
-        this.renderTable();
-
-        let msg = `成功导入 ${added} 条记录`;
-        if (skipped > 0) msg += `，跳过 ${skipped} 条重复`;
-        if (failed > 0) msg += `，失败 ${failed} 条`;
-        Toast.success(msg);
-        History.log("导入数据", `JSON ${added} 条`);
+        totalAdded += added;
+        totalSkipped += skipped;
+        totalFailed += failed;
       } catch (err) {
-        Toast.error("JSON 解析失败: " + err.message);
+        Toast.error(`${file.name} 解析失败: ${err.message}`);
       }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
+    }
+
+    if (fileCount === 0) {
+      Toast.warning("未找到有效的 JSON 文件");
+      return;
+    }
+
+    APP.rebuildMetadata();
+    APP.nextId = Math.max(...APP.data.entries.map((e) => e.id), 0) + 1;
+    APP.setupSearch();
+    APP.saveData();
+    APP.renderList();
+    APP.renderSidebar();
+    APP.renderDetail();
+    APP.updateStatus();
+    this.renderTable();
+
+    let msg = `成功导入 ${totalAdded} 条记录`;
+    if (totalSkipped > 0) msg += `，跳过 ${totalSkipped} 条重复`;
+    if (totalFailed > 0) msg += `，失败 ${totalFailed} 条`;
+    Toast.success(msg);
+    History.log("导入数据", `JSON ${totalAdded} 条`);
+  },
+
+  setupDropZone() {
+    const zone = document.getElementById("adminDropZone");
+    const input = document.getElementById("adminDropInput");
+    if (!zone || !input) return;
+
+    zone.addEventListener("click", () => input.click());
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      zone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.add("drag-over");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      zone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.remove("drag-over");
+      });
+    });
+
+    zone.addEventListener("drop", (e) => {
+      const files = e.dataTransfer.files ? [...e.dataTransfer.files] : [];
+      if (files.length) this.importJSONFiles(files);
+    });
+
+    input.addEventListener("change", (e) => this.importJSON(e));
   },
 
   // Deploy to GitHub Pages

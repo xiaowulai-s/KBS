@@ -1,4 +1,4 @@
-﻿﻿﻿﻿const CACHE_NAME = 'kbs-industrial-v1';
+﻿﻿﻿﻿﻿﻿﻿const CACHE_NAME = 'kbs-industrial-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,12 @@ const STATIC_ASSETS = [
   '/404.html',
   '/manifest.json',
   '/favicon.svg',
+  'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css',
+  'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js',
+  'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js',
+  'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css',
+  'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js',
+  'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js',
 ];
 
 // Install - cache static assets

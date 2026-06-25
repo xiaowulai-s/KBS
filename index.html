@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿<!doctype html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!doctype html>
 <html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
@@ -10,6 +10,13 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/lib/marked.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -91,6 +98,14 @@
               <span>最近阅读</span>
               <span class="sidebar-count" id="countRecent">0</span>
             </div>
+            <div class="sidebar-item" data-view="timeline">
+              <i data-lucide="calendar-days"></i>
+              <span>时间轴</span>
+            </div>
+            <div class="sidebar-item" data-view="topics">
+              <i data-lucide="library"></i>
+              <span>专题聚合</span>
+            </div>
             <div class="sidebar-item" data-view="favorites">
               <i data-lucide="star"></i>
               <span>我的收藏</span>
@@ -157,8 +172,14 @@
               <button class="icon-btn" id="sortBtn" title="排序">
                 <i data-lucide="arrow-up-down"></i>
               </button>
+              <button class="icon-btn" id="filterBtn" title="高级筛选">
+                <i data-lucide="filter"></i>
+              </button>
               <button class="icon-btn" id="densityBtn" title="切换密度">
                 <i data-lucide="list"></i>
+              </button>
+              <button class="icon-btn" id="graphToggleBtn" title="知识图谱">
+                <i data-lucide="share-2"></i>
               </button>
               <button class="icon-btn" id="batchToggleBtn" title="批量编辑">
                 <i data-lucide="check-square"></i>
@@ -247,9 +268,26 @@
                 </button>
               </div>
             </div>
-            <div class="detail-preview" id="detailPreview"></div>
+            <div class="detail-toc" id="detailToc" style="display:none">
+            <div class="detail-toc-header">
+              <i data-lucide="list"></i>
+              <span>目录</span>
+              <button class="detail-toc-toggle" id="detailTocToggle" aria-label="折叠目录">
+                <i data-lucide="chevron-up"></i>
+              </button>
+            </div>
+            <nav class="detail-toc-list" id="detailTocList"></nav>
           </div>
-        </aside>
+          <div class="detail-preview" id="detailPreview"></div>
+            <div class="detail-related" id="detailRelated" style="display:none">
+              <div class="detail-related-header">
+                <i data-lucide="git-branch"></i>
+                <span>相关文章</span>
+              </div>
+              <div class="detail-related-list" id="detailRelatedList"></div>
+            </div>
+        </div>
+      </aside>
       </div>
 
       <!-- Mobile Bottom Tab -->
@@ -398,6 +436,7 @@
         </div>
         <h1 class="reader-heading" id="readerHeading"></h1>
         <div class="reader-content" id="readerContent"></div>
+        <div class="reader-progress-float" id="readerProgressFloat">已读 0%</div>
       </div>
     </div>
 
@@ -438,6 +477,12 @@
         </div>
         <div id="statsContainer" class="stats-container"></div>
         <div class="admin-history" id="adminHistory"></div>
+        <div class="admin-drop-zone" id="adminDropZone">
+          <div class="admin-drop-icon"><i data-lucide="upload-cloud"></i></div>
+          <div class="admin-drop-title">拖拽 JSON 文件到此处导入</div>
+          <div class="admin-drop-hint">支持多个文件批量导入，重复 ID 会自动跳过</div>
+          <input type="file" id="adminDropInput" accept=".json,application/json" multiple style="display:none" />
+        </div>
         <div class="admin-table-wrapper">
           <table class="admin-table" id="adminTable">
             <thead>
@@ -474,6 +519,99 @@
         <div class="metadata-toolbar" id="metadataToolbar"></div>
         <div class="metadata-list" id="metadataList"></div>
       </div>
+    </div>
+
+    <!-- Knowledge Graph Modal -->
+    <div id="graphModal" class="modal" style="display: none" role="dialog" aria-modal="true">
+      <div class="modal-overlay" id="graphOverlay"></div>
+      <div class="modal-content graph-modal-content" style="width: 90vw; max-width: 1100px; height: 80vh">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-label">探索</span>
+            <h2>知识图谱</h2>
+          </div>
+          <div class="graph-legend">
+            <span><i class="legend-dot" style="background:var(--accent-cyan)"></i> 条目</span>
+            <span><i class="legend-dot" style="background:var(--accent-amber)"></i> 分类</span>
+            <span><i class="legend-dot" style="background:var(--accent-blue)"></i> 标签</span>
+          </div>
+          <button class="modal-close" id="graphClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="graph-body" id="graphBody">
+          <svg id="graphSvg" width="100%" height="100%"></svg>
+        </div>
+        <div class="graph-hint">拖拽节点 · 滚轮缩放 · 点击节点筛选条目</div>
+      </div>
+    </div>
+
+    <!-- Advanced Filter Modal -->
+    <div id="filterModal" class="modal" style="display: none" role="dialog" aria-modal="true">
+      <div class="modal-overlay" id="filterOverlay"></div>
+      <div class="modal-content" style="width: 420px">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-label">筛选</span>
+            <h2>高级筛选</h2>
+          </div>
+          <button class="modal-close" id="filterClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="filter-body">
+          <div class="filter-group">
+            <label class="filter-label">文件类型</label>
+            <select class="filter-select" id="filterFileType">
+              <option value="">全部类型</option>
+              <option value="markdown">Markdown</option>
+              <option value="pdf">PDF</option>
+              <option value="image">图片</option>
+              <option value="video">视频</option>
+              <option value="audio">音频</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">创建日期范围</label>
+            <div class="filter-date-row">
+              <input type="date" class="filter-date" id="filterDateFrom" placeholder="开始日期" />
+              <span>至</span>
+              <input type="date" class="filter-date" id="filterDateTo" placeholder="结束日期" />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-ghost" id="filterReset">重置</button>
+            <button class="btn btn-primary" id="filterApply">应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcutsModal" class="modal" style="display: none" role="dialog" aria-modal="true">
+      <div class="modal-overlay" id="shortcutsOverlay"></div>
+      <div class="modal-content" style="width: 560px; max-height: 80vh">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-label">帮助</span>
+            <h2>键盘快捷键</h2>
+          </div>
+          <button class="modal-close" id="shortcutsClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="shortcuts-body" id="shortcutsBody"></div>
+      </div>
+    </div>
+
+    <!-- Image Lightbox -->
+    <div id="lightbox" class="lightbox" style="display: none" role="dialog" aria-modal="true">
+      <button class="lightbox-close" id="lightboxClose" aria-label="关闭">
+        <i data-lucide="x"></i>
+      </button>
+      <img id="lightboxImg" src="" alt="预览" />
+      <div class="lightbox-caption" id="lightboxCaption"></div>
     </div>
 
     <!-- Import / Export Modal -->

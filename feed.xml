@@ -1,14 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>KBS · 本地文件知识库</title>
+    <title>本地文件知识库</title>
     <link>https://houxixi.ccwu.cc/</link>
-    <description>结构化整理本地文件，构建可搜索、可分享的在线知识库</description>
+    <description>通过 GitHub Pages 分享的本地文件知识库</description>
     <language>zh-CN</language>
-    <lastBuildDate>Mon, 22 Jun 2026 04:55:48 +0000</lastBuildDate>
+    <lastBuildDate>Wed, 24 Jun 2026 09:23:29 +0000</lastBuildDate>
     <generator>KKnowledge Base RSS Generator</generator>
     <atom:link href="https://houxixi.ccwu.cc/feed.xml" rel="self" type="application/rss+xml"/>
     <item>
+      <title><![CDATA[LED 流水灯工程实例]]></title>
+      <link>https://houxixi.ccwu.cc//?id=7</link>
+      <description><![CDATA[LED 流水灯工程实例]]></description>
+      <pubDate>Tue, 23 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=7</guid>
+      <category>Md</category>
+      <category>文档</category>
+    </item>    <item>
+      <title><![CDATA[Verilog 工程项目新建步骤]]></title>
+      <link>https://houxixi.ccwu.cc//?id=12</link>
+      <description><![CDATA[Verilog 工程项目新建步骤]]></description>
+      <pubDate>Tue, 23 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=12</guid>
+      <category>Md</category>
+      <category>文档</category>
+      <category>项目管理</category>
+    </item>    <item>
+      <title><![CDATA[源文件和约束来源说明]]></title>
+      <link>https://houxixi.ccwu.cc//?id=14</link>
+      <description><![CDATA[源文件和约束来源说明]]></description>
+      <pubDate>Tue, 23 Jun 2026 00:00:00 +0000</pubDate>
+      <guid>https://houxixi.ccwu.cc//?id=14</guid>
+      <category>Md</category>
+      <category>文档</category>
+    </item>    <item>
       <title><![CDATA[API 接口设计规范]]></title>
       <link>https://houxixi.ccwu.cc//?id=1</link>
       <description><![CDATA[API 接口设计规范]]></description>
@@ -45,10 +70,10 @@
       <category>编程教程</category>
     </item>    <item>
       <title><![CDATA[团队会议记录 - 6月]]></title>
-      <link>https://houxixi.ccwu.cc//?id=7</link>
+      <link>https://houxixi.ccwu.cc//?id=15</link>
       <description><![CDATA[团队会议记录 - 6月]]></description>
       <pubDate>Thu, 18 Jun 2026 00:00:00 +0000</pubDate>
-      <guid>https://houxixi.ccwu.cc//?id=7</guid>
+      <guid>https://houxixi.ccwu.cc//?id=15</guid>
       <category>Md</category>
       <category>文档</category>
       <category>团队协作</category>

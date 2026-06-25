@@ -77,26 +77,43 @@ def extract_title_from_markdown(file_path: Path) -> str:
 def extract_description_from_markdown(file_path: Path, max_length: int = 120) -> str:
     """从 Markdown 文件中提取第一段非空文本作为描述"""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-            # 移除代码块
-            content = re.sub(r"```[\s\S]*?```", "", content)
-            # 移除行内代码、链接、图片
-            content = re.sub(r"`[^`]*`", "", content)
-            content = re.sub(r"!\[.*?\]\(.*?\)", "", content)
-            content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)
-            # 获取第一段文字
-            paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-            for p in paragraphs:
-                text = re.sub(r"^#+\s*", "", p).strip()
-                text = text.replace("\n", " ")
-                if text and not text.startswith("---"):
-                    if len(text) > max_length:
-                        text = text[:max_length] + "..."
-                    return text
+        content = read_markdown_content(file_path, max_length=max_length + 20)
+        # 移除代码块
+        content = re.sub(r"```[\s\S]*?```", "", content)
+        # 移除行内代码、链接、图片
+        content = re.sub(r"`[^`]*`", "", content)
+        content = re.sub(r"!\[.*?\]\(.*?\)", "", content)
+        content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)
+        # 获取第一段文字
+        paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+        for p in paragraphs:
+            text = re.sub(r"^#+\s*", "", p).strip()
+            text = text.replace("\n", " ")
+            if text and not text.startswith("---"):
+                if len(text) > max_length:
+                    text = text[:max_length] + "..."
+                return text
     except Exception:
         pass
     return ""
+
+
+def read_markdown_content(file_path: Path, max_length: int = 50000) -> str:
+    """读取 Markdown 文件正文，移除 YAML frontmatter 并限制长度"""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        # 移除 YAML frontmatter
+        text = re.sub(r"^---\s*\n[\s\S]*?\n---\s*\n", "", text, count=1)
+        # 移除 HTML 注释
+        text = re.sub(r"<!--[\s\S]*?-->", "", text)
+        # 规范化空白
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        if len(text) > max_length:
+            text = text[:max_length]
+        return text
+    except Exception:
+        return ""
 
 
 def infer_category(filename: str, title: str, description: str) -> str:
@@ -169,9 +186,11 @@ def scan_docs() -> list:
         # 自动生成元数据
         title = ""
         description = ""
+        content = ""
         if file_type == "markdown":
             title = extract_title_from_markdown(file_path)
             description = extract_description_from_markdown(file_path)
+            content = read_markdown_content(file_path)
 
         if not title:
             title = Path(file_path.name).stem.replace("-", " ").replace("_", " ")
@@ -197,6 +216,8 @@ def scan_docs() -> list:
             "createdAt": created_at,
             "type": file_type,
         }
+        if content:
+            entry["content"] = content
         entries.append(entry)
         file_id += 1
 

@@ -284,6 +284,46 @@ const PromptDialog = {
   },
 };
 
+// Reader progress manager
+const ReaderProgress = {
+  KEY: "kb_reader_progress",
+
+  _read() {
+    try {
+      return JSON.parse(localStorage.getItem(this.KEY)) || {};
+    } catch {
+      return {};
+    }
+  },
+
+  _write(map) {
+    localStorage.setItem(this.KEY, JSON.stringify(map));
+  },
+
+  save(id, scrollTop, scrollHeight, clientHeight) {
+    if (!id) return;
+    const map = this._read();
+    map[id] = {
+      scrollTop,
+      percent: scrollHeight > clientHeight ? scrollTop / (scrollHeight - clientHeight) : 0,
+      updatedAt: Date.now(),
+    };
+    this._write(map);
+  },
+
+  load(id) {
+    if (!id) return null;
+    const map = this._read();
+    return map[id] || null;
+  },
+
+  remove(id) {
+    const map = this._read();
+    delete map[id];
+    this._write(map);
+  },
+};
+
 // Operation history manager
 const History = {
   KEY: "knowledgeBaseHistory",
@@ -336,7 +376,145 @@ const Sorter = {
   },
 };
 
-// Skeleton loader
+// Markdown rendering pipeline (highlight, copy, mermaid, katex, TOC)
+const MarkdownRenderer = {
+  mermaidInitialized: false,
+
+  initMermaid() {
+    if (this.mermaidInitialized || typeof mermaid === "undefined") return;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "default",
+      securityLevel: "loose",
+    });
+    this.mermaidInitialized = true;
+  },
+
+  updateMermaidTheme() {
+    if (typeof mermaid === "undefined") return;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "default",
+      securityLevel: "loose",
+    });
+  },
+
+  parse(text) {
+    if (!text) return "";
+    if (typeof marked === "undefined") return SearchHighlight._escapeHtml(text);
+    return marked.parse(text);
+  },
+
+  render(container, { text = "", enableToc = false, onToc = null } = {}) {
+    if (!container) return { html: "", toc: [] };
+    const html = this.parse(text);
+    container.innerHTML = html;
+    this.enhance(container);
+    let toc = [];
+    if (enableToc) toc = this.extractToc(container);
+    if (onToc) onToc(toc);
+    return { html, toc };
+  },
+
+  enhance(container) {
+    if (!container) return;
+    this.highlightCode(container);
+    this.addCopyButtons(container);
+    this.renderMermaid(container);
+    this.renderMath(container);
+  },
+
+  highlightCode(container) {
+    if (typeof hljs === "undefined") return;
+    container.querySelectorAll("pre code").forEach((block) => {
+      hljs.highlightElement(block);
+    });
+  },
+
+  addCopyButtons(container) {
+    container.querySelectorAll("pre").forEach((pre) => {
+      if (pre.querySelector(".code-copy-btn")) return;
+      const code = pre.querySelector("code");
+      if (!code) return;
+      const btn = document.createElement("button");
+      btn.className = "code-copy-btn";
+      btn.type = "button";
+      btn.setAttribute("aria-label", "复制代码");
+      btn.innerHTML = '<i data-lucide="copy"></i>';
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent);
+          btn.classList.add("copied");
+          btn.innerHTML = '<i data-lucide="check"></i>';
+          if (typeof lucide !== "undefined") lucide.createIcons();
+          setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.innerHTML = '<i data-lucide="copy"></i>';
+            if (typeof lucide !== "undefined") lucide.createIcons();
+          }, 2000);
+        } catch (err) {
+          Toast.error("复制失败");
+        }
+      });
+      pre.style.position = "relative";
+      pre.appendChild(btn);
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    });
+  },
+
+  renderMermaid(container) {
+    if (typeof mermaid === "undefined") return;
+    this.initMermaid();
+    const nodes = container.querySelectorAll("pre code.language-mermaid, pre code.language-mermaid-js");
+    nodes.forEach((code) => {
+      const pre = code.parentElement;
+      const id = "mermaid-" + Math.random().toString(36).slice(2, 9);
+      const graphDef = code.textContent;
+      const wrapper = document.createElement("div");
+      wrapper.className = "mermaid-diagram";
+      wrapper.textContent = graphDef;
+      pre.replaceWith(wrapper);
+    });
+    try {
+      mermaid.run({ querySelector: ".mermaid-diagram" });
+    } catch (err) {
+      console.warn("Mermaid render failed:", err);
+    }
+  },
+
+  renderMath(container) {
+    if (typeof renderMathInElement === "undefined") return;
+    try {
+      renderMathInElement(container, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\[", right: "\\]", display: true },
+          { left: "\\(", right: "\\)", display: false },
+        ],
+        throwOnError: false,
+      });
+    } catch (err) {
+      console.warn("KaTeX render failed:", err);
+    }
+  },
+
+  extractToc(container) {
+    const headings = container.querySelectorAll("h1, h2, h3, h4");
+    const toc = [];
+    headings.forEach((h, idx) => {
+      if (!h.id) h.id = "heading-" + idx;
+      toc.push({
+        level: parseInt(h.tagName[1]),
+        text: h.textContent.trim(),
+        id: h.id,
+      });
+    });
+    return toc;
+  },
+};
+
+// Skeleton helper
 const Skeleton = {
   show(grid, view = "list") {
     const isGrid = view === "grid";

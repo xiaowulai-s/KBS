@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "siteTitle": "KBS · 本地文件知识库",
   "siteDescription": "结构化整理本地文件，构建可搜索、可分享的在线知识库",
-  "generatedAt": "2026-06-23T05:05:49Z",
+  "generatedAt": "2026-06-24T09:15:42Z",
   "entries": [
     {
       "id": 1,
@@ -86,6 +86,20 @@
       "type": "markdown"
     },
     {
+      "id": 7,
+      "title": "LED 流水灯工程实例",
+      "category": "未分类",
+      "tags": [
+        "Md",
+        "文档"
+      ],
+      "path": "docs/led-strip-project-example.md",
+      "description": "LED 流水灯工程实例",
+      "createdAt": "2026-06-23",
+      "type": "markdown",
+      "content": "# LED 流水灯工程实例\n\n## 项目概述\n\n这是一个完整的 Verilog FPGA 入门工程，实现 8 位 LED 流水灯效果。适合初学者学习新建工程、编写代码、约束引脚、综合烧录的完整流程。\n\n- **目标芯片**: Xilinx Artix-7 (XC7A35T)\n- **开发工具**: Vivado 2023.2 或更高版本\n- **功能描述**: 8 个 LED 依次点亮，形成流水灯效果\n\n## 工程目录结构\n\n```\nled_strip_project/\n├── README.md                    # 本文件\n├── rtl/                         # Verilog 源文件\n│   ├── led_strip_top.v          # 顶层模块\n│   ├── counter_div.v            # 分频器模块\n│   └── led_seq_ctrl.v           # LED 流水控制模块\n├── sim/                         # 仿真文件\n│   ├── tb_led_strip_top.v       # 测试台\n│   └── wave.do                  # GTKWave 波形配置\n├── constraints/                 # 约束文件\n│   └── pins.xdc                 # 引脚分配约束\n├── docs/                        # 设计文档\n│   └── design_notes.md          # 设计说明\n└── outputs/                     # 输出目录（自动生成）\n    ├── led_strip_run/\n    └── synth_design/\n```\n\n## 快速开始\n\n### 1. 在 Vivado 中新建工程\n\n1. 打开 Vivado，选择 **File → New → Project**\n2. 项目名称: `led_strip_project`\n3. 项目类型: **RTL Project**\n4. 默认部件: 选择 `xc7a35ticsg324-1L` (Artix-7)\n5. 完成创建后，在左侧 **ADD SOURCES** 添加 `rtl/` 下的所有 `.v` 文件\n6. 在 **ADD CONSTRAINTS** 添加 `constraints/pins.xdc`\n7. 运行 **RUN SYNTHESIS** → **RUN IMPLEMENTATION** → **GENERATE BITSTREAM**\n\n### 2. 仿真验证\n\n```bash\n# 使用 ModelSim\nvsim -f file_list.f\n# 或使用 GTKWave 查看波形\ngtkwave counter.vcd\n```\n\n## 模块说明\n\n### 1. 分频器 (`counter_div.v`)\n\n将 50MHz 系统时钟分频为 1Hz 低频时钟，使 LED 变化肉眼可见。\n\n### 2. LED 流水控制 (`led_seq_ctrl.v`)\n\n接收分频后的时钟，控制 8 个 LED 依次点亮，形成流水效果。\n\n### 3. 顶层模块 (`led_strip_top.v`)\n\n实例化分频器和 LED 控制模块，连接内外接口。\n\n## 引脚约束 (Xilinx Artix-7)\n\n以下约束基于常见开发板（如 Basys 3 / Zybo）:\n\n```tcl\n# 系统时钟 50MHz\nset_property PACKAGE_PIN E3 [get_ports clk]\nset_property IOSTANDARD LVCMOS33 [get_ports clk]\ncreate_clock -period 20.000 [get_ports clk]\n\n# LED 输出 (8 位)\nset_property PACKAGE_PIN G15 [get_ports {led[0]}]\nset_property PACKAGE_PIN H15 [get_ports {led[1]}]\nset_property PACKAGE_PIN J15 [get_ports {led[2]}]\nset_property PACKAGE_PIN L15 [get_ports {led[3]}]\nset_property PACKAGE_PIN M14 [get_ports {led[4]}]\nset_property PACKAGE_PIN N14 [get_ports {led[5]}]\nset_property PACKAGE_PIN P14 [get_ports {led[6]}]\nset_property PACKAGE_PIN R15 [get_ports {led[7]}]\n\n# 按钮复位\nset_property PACKAGE_PIN T15 [get_ports btn_rst_n]\nset_property IOSTANDARD LVCMOS33 [get_ports btn_rst_n]\n```\n\n> **注意**: 实际引脚号需要根据你的开发板原理图调整。查阅板卡手册找到对应 GPIO 引脚号。\n\n## 编译与烧录\n\n1. **综合 (Synthesis)**: Flow Navigator → Run Synthesis\n2. **实现 (Implementation)**: Flow Navigator → Run Implementation\n3. **生成比特流**: Flow Navigator → Generate Bitstream\n4. **打开硬件管理器**: Open Hardware Manager → Connect → Program Device\n\n## 扩展建议\n\n- 改变流水方向：双向循环\n- 增加按键切换速度：多档分频比\n- 添加跑马灯效果：多段同时亮起\n- 加入音频反馈：配合蜂鸣器\n\n## 相关文件\n\n- [Verilog 工程新建步骤](./verilog-project-setup.md)\n- [Xilinx Artix-7 数据手册](https://www.xilinx.com/support/documentation/data_sheets/ds181_Artix_7_Data_Sheet.pdf)\n\n---\n\n**创建日期**: 2026-06-23\n**作者**: Agnes\n**版本**: v1.0\n\n## 工程文件清单\n\n以下是一个可直接使用的 LED 流水灯完整工程：\n\n- `led_strip_project/` 目录包含了所有源代码、约束文件、仿真文件和脚本。\n- 可以直接复制到 Vivado 中使用，或者作为参考模板自行搭建项目。"
+    },
+    {
       "id": 8,
       "title": "Linux",
       "category": "项目管理",
@@ -112,7 +126,7 @@
       "type": "other"
     },
     {
-      "id": 7,
+      "id": 15,
       "title": "团队会议记录 - 6月",
       "category": "团队协作",
       "tags": [
@@ -165,6 +179,20 @@
       "description": "Verilog 工程项目新建步骤",
       "createdAt": "2026-06-23",
       "type": "markdown"
+    },
+    {
+      "id": 14,
+      "title": "源文件和约束来源说明",
+      "category": "未分类",
+      "tags": [
+        "Md",
+        "文档"
+      ],
+      "path": "docs/verilog-source-and-constraints.md",
+      "description": "源文件和约束来源说明",
+      "createdAt": "2026-06-23",
+      "type": "markdown",
+      "content": "# 源文件和约束来源说明\n\n## 什么是源文件？\n\n**源文件**就是包含 Verilog/VHDL 代码的文件（通常是 `.v` 或 `.vh` 后缀），它描述了你要设计的数字电路。\n\n## 源文件从哪里来？\n\n### 1. 自己编写 ✍️\n这是最常见的方式：\n- **功能设计阶段**：你根据需求编写模块代码\n- **示例**：计数器、状态机、数据通路、控制逻辑\n- **存放位置**：工程目录中的 `rtl/` (Register Transfer Level) 文件夹\n\n```verilog\n// 例如你自己写的 led_seq_ctrl.v 就是源文件\n// 描述了 LED 流水灯的逻辑\nmodule led_seq_ctrl (\n    input  wire clk,\n    output reg  [7:0] led\n);\n    // 你的设计逻辑\nendmodule\n```\n\n### 2. 从开源库获取 📦\n- GitHub 上有大量开源 FPGA 模块（UART、SPI、I2C、DDR 控制器等）\n- 可以下载后直接放入工程中\n- 示例：[OpenCores](https://www.opencores.org/)、[GitHub FPGA 标签](https://github.com/topics/fpga)\n\n### 3. Xilinx/Intel 官方 IP 核 🧩\n- Vivado 和 Quartus 内置 IP Catalog\n- 可生成时钟管理、存储器控制、通信接口等模块\n- 生成后会输出 `.v` 文件作为源文件\n\n### 4. 前辈/公司的现有代码\n- 团队共享的代码库\n- 需要熟悉项目的编码规范和模块接口\n\n---\n\n## 什么是对齐约束文件？\n\n**约束文件**告诉 FPGA 工具：\n1. **哪些引脚对应哪个信号**（物理引脚分配）\n2. **时钟频率是多少**（时序约束）\n3. **其他物理限制**（电压标准、电阻等）\n\n## 约束文件从哪里来？\n\n### 1. 开发板厂家提供 ⚙️\n- **Xilinx 开发板**: 购买时会附带引脚约束文件（`.xdc`）\n- **Intel 开发板**: 提供 `.qsf` 或 `.sdc` 文件\n- **示例**: Basys 3、Zybo、DE1-SoC 等都有官方约束文件\n\n### 2. 从原理图手动编写 📐\n- 查看开发板的原理图\n- 找到每个信号对应的物理引脚编号\n- 手动写入约束文件\n\n```tcl\n# 例如：LED0 连接到 G15 引脚\nset_property PACKAGE_PIN G15 [get_ports {led[0]}]\nset_property IOSTANDARD LVCMOS33 [get_ports {led[0]}]\n```\n\n### 3. 从旧项目复制\n- 如果有类似的开发板，可以从旧工程中拷贝约束文件\n- 然后根据新需求修改引脚号\n\n### 4. Vivado/Quartus 自动生成\n- Vivado: Tools → Create and Package New IP → 可生成约束模板\n- Quartus: Assignments → Pin Planner 可视化编辑\n\n---\n\n## 总结\n\n| 类型 | 来源 | 示例 |\n|------|------|------|\n| **源文件 (.v)** | 自己写、开源库、IP 核、团队代码 | counter.v、uart_rx.v |\n| **约束文件 (.xdc/.qsf)** | 开发板提供、原理图手动编、旧项目拷贝 | pins.xdc、timing.xdc |\n\n> **关键点**: \n> - **源文件** = 你写的逻辑代码（电路长什么样）\n> - **约束文件** = 物理引脚分配（电路放在哪里、怎么连）\n> - 两者缺一不可！没有源文件，FPGA 不知道要做什么；没有约束文件，FPGA 不知道该放到哪个引脚上。"
     }
   ]
 }
